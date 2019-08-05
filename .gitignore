@@ -15,4 +15,5 @@ gpu_codegen/
 docs/build
 .ipynb_checkpoints
 deps
+data
 tags
