@@ -13,9 +13,6 @@
 #   input/output layout conversion, we just have to check if the node we are copying is
 #   annotated as mkldnn and make sure we annotate the new node as such.
 
-#const BASE_CACHE_PATH = joinpath(@__DIR__, ".cache", "timing_cache.jls")
-#const BASE_GPU_CACHE_PATH = joinpath(@__DIR__, ".cache", "gpu_timing_cache.jls")
-
 disable_passes() = ENV["NGRAPH_PASS_ENABLES"] = join((
     "AlgebraicSimplification:0",
     "CoreFusion:0",

@@ -1,6 +1,13 @@
-module Visualization
+module Visualizer
+
+import nGraph
+using ..Utils
 
 using PGFPlotsX
+using Serialization
+
+function titlename end
+function canonical_path end
 
 include("util.jl")
 include("cost.jl")

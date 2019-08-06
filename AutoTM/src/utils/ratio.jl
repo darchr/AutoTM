@@ -20,6 +20,5 @@ function getratio(f::nGraph.NFunction)
 end
 
 ratio_string(x::Rational) = "$(x.num):$(x.den)"
-
-#compare_ratio(a, b) = iszero(b.den) ? inv(a) : a - b
+compare_ratio(a, b) = iszero(b.den) ? inv(a) : a - b
 

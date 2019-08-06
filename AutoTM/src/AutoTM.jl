@@ -48,13 +48,15 @@ include("optimizer/optimizer.jl")
 include("zoo/zoo.jl")
 
 #####
+##### Plotting
+#####
+
+include("visualizer/visualizer.jl")
+
+#####
 ##### Experiments
 #####
 
 include("experiments/experiments.jl")
-
-#####
-##### Plotting
-#####
 
 end # module

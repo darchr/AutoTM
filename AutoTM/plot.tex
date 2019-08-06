@@ -1,0 +1,61 @@
+\RequirePackage{luatex85}
+\documentclass[tikz]{standalone}
+% Default preamble
+\usepackage{pgfplots}
+\pgfplotsset{compat=newest}
+\usepgfplotslibrary{groupplots}
+\usepgfplotslibrary{polar}
+\usepgfplotslibrary{smithchart}
+\usepgfplotslibrary{statistics}
+\usepgfplotslibrary{dateplot}
+\begin{document}
+\pgfplotsset{
+    width=12cm,
+    height=8cm}
+
+\begin{tikzpicture}
+\begin{axis}[ybar, bar width={5pt}, grid={major}, xlabel={DRAM Limit (GB)}, ylabel={Relative Predicted Runtime Error \%}, legend style={at={(1.05,0.5)
+}, anchor={west}}, legend cell align={left}, symbolic x coords={1:0,8:1,4:1,1:1,0:1}]
+    \addplot+
+        coordinates {
+            (1:0,-2.62596830418744)
+            (8:1,-2.241840055883096)
+            (4:1,-6.741835506780466)
+            (1:1,-9.55475709412628)
+            (0:1,-1.640019680801896)
+        }
+        ;
+    \addlegendentry {Vgg19 - static}
+    \addplot+
+        coordinates {
+            (1:0,-12.483927979412195)
+            (8:1,-11.917281101243283)
+            (4:1,-11.890990264575365)
+            (1:1,-3.249266696366279)
+            (0:1,10.148328177913184)
+        }
+        ;
+    \addlegendentry {Vgg19 - static}
+    \addplot+
+        coordinates {
+            (1:0,-3.263482624371928)
+            (8:1,-5.888082898069145)
+            (4:1,-9.567761940600665)
+            (1:1,-2.2344195920592)
+            (0:1,-1.096403563568394)
+        }
+        ;
+    \addlegendentry {Vgg19 - synchronous}
+    \addplot+
+        coordinates {
+            (1:0,-12.67718540453415)
+            (8:1,-11.14883170525755)
+            (4:1,-13.33172386891272)
+            (1:1,8.105416584940734)
+            (0:1,9.889311878274476)
+        }
+        ;
+    \addlegendentry {Vgg19 - synchronous}
+\end{axis}
+\end{tikzpicture}
+\end{document}

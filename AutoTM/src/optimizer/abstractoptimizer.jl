@@ -71,3 +71,5 @@ _numerator(x::AbstractOptimizer{Int64}) = getlimit(x)
 
 _denominator(x::AbstractOptimizer{Rational{Int64}}) = getratio(x).den
 _denominator(x::AbstractOptimizer{Int64}) = one(Int64)
+
+name(::T) where {T <: AbstractOptimizer} = error("Name of $T not implemented")

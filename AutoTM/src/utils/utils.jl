@@ -34,7 +34,7 @@ export  insert_move_node!,
 export TensorDescriptor, NodeDescriptor, inputs, outputs, description
 
 # Ratios
-export getratio, ratio_string, footprint
+export getratio, ratio_string, footprint, compare_ratio
 
 # Random
 export find_vertex, find_edge, findonly, dict_push!

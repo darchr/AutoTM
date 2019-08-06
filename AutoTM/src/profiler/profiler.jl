@@ -28,7 +28,7 @@ export profile, read_timing_data
 export compare
 
 # stdlib deps
-using Serialization
+using Serialization, Dates
 
 using ..Utils
 using ProgressMeter

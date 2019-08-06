@@ -9,6 +9,7 @@
 *.DS_Store
 *.pkl
 *.ipynb
+*.tex
 
 cpu_codegen/
 gpu_codegen/
