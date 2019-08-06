@@ -1,4 +1,8 @@
-function pgf_error_plot(fns, ratios, caches; file = "plot.tex", formulations = ("static", "synchronous"))
+function pgf_error_plot(fns, ratios, caches; 
+        file = "plot.tex", 
+        formulations = ("static", "synchronous"),
+        suffix = nothing
+    )
     
     plots = []
     backend = nGraph.Backend("CPU")
@@ -7,7 +11,7 @@ function pgf_error_plot(fns, ratios, caches; file = "plot.tex", formulations = (
             for cache in caches
                 x = []
                 y = []
-                data = deserialize(canonical_path(f, formulation, cache, backend))
+                data = deserialize(canonical_path(f, formulation, cache, backend, suffix))
 
                 for ratio in ratios
                     ind = findabsmin(x -> compare_ratio(getratio(x), ratio), data.runs)
@@ -49,6 +53,7 @@ function pgf_error_plot(fns, ratios, caches; file = "plot.tex", formulations = (
 
             # Setup x coordinates
             symbolic_x_coords = ratio_string.(ratios), 
+            xtick = "data",
         },
         plots...
     )

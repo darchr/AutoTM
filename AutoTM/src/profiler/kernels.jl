@@ -38,7 +38,6 @@ profile(fex::nGraph.FluxExecutable; kw...) =
     profile(fex.ex.ngraph_function, fex.ex.backend; kw...)
 
 function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.CPU};
-        #cache = CPUKernelCache(BASE_CACHE_PATH),
         cache = nothing,
         # Force re-profiling
         recache = false,

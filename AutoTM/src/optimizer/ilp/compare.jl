@@ -25,6 +25,7 @@ function Profiler._compare!(
         :dram_limit => maxlimit(frame.modeltype),
         :tensor_size_map => Dict(nGraph.name(t) => sizeof(t) for t in tensors(data)),
         :config_map => Dict(nGraph.name(n) => getconfig(nGraph.Node(n)) for n in nodes(data)),
+        :ratio => getratio(opt),
     )
 
     nt_new = Dict(
