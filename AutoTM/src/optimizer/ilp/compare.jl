@@ -1,17 +1,22 @@
 #####
 ##### _compare! - CPU Edition
 #####
+
 function Profiler._compare!(
         stats, 
         f, 
         opt::ILPOptimizer, 
         backend::nGraph.Backend{nGraph.CPU}; 
-        skip_run = false, kw...
+        skip_run = false, 
+        cache = nothing,
+        kw...,
     )
 
-    fex, frame, _metadata = factory(backend, f, opt; kw...)
+    fex, frame, _metadata = factory(backend, f, opt; cache = cache, kw...)
     GC.gc()
-    data = frame.profile_data
+
+    # Reprofile to capture the move nodes.
+    data = profile(fex; cache = cache)
 
     # Unpack some of the return values for logging
     creation_times = _metadata[:creation_times]

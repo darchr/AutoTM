@@ -2,12 +2,12 @@
 ##### The plots
 #####
 
-function pgf_stats_plot(f; file = "plot.tex", formulation = "synchronous")
-    savefile = joinpath(savedir(f), join((name(f), formulation), "_") * ".jls")
+function pgf_movement_plot(f, cache, suffix; file = "plot.tex", formulation = "synchronous")
+    savefile = canonical_path(f, formulation, cache, nGraph.Backend("CPU"), suffix)
     data = deserialize(savefile)
 
     # Plot the number of move nodes.
-    io_size = data.io_size[] 
+    io_size = data.io_size[]
     dram_sizes = (getname(data.runs, :dram_limit) ./ 1E3) .+ (io_size ./ 1E9)
 
     x = dram_sizes
@@ -64,11 +64,18 @@ function pgf_stats_plot(f; file = "plot.tex", formulation = "synchronous")
     return nothing
 end
 
-function pgf_io_plot(f; file = "plot.tex", formulations = "synchronous")
-    data = load_save_files(f, formulations)
+function pgf_io_plot(f, cache, suffix; file = "plot.tex", formulations = ("synchronous",))
+    savefiles = canonical_path.(
+        Ref(f),
+        formulations,
+        Ref(cache),
+        Ref(nGraph.Backend("CPU")),
+        Ref(suffix)
+    )
+    data = deserialize.(savefiles)
 
     # Plot the number of move nodes.
-    io_size = first(data).io_size[] 
+    io_size = first(data).io_size[]
     plots = []
     for (d, formulation) in zip(data, formulations)
         dram_sizes = (getname(d.runs, :dram_limit) ./ 1E3) .+ (io_size ./ 1E9)
@@ -78,7 +85,7 @@ function pgf_io_plot(f; file = "plot.tex", formulations = "synchronous")
                     thick,
                  },
                  Coordinates(
-                    dram_sizes, 
+                    dram_sizes,
                     getname(d.runs, :bytes_dram_input_tensors) ./ getname(d.runs, :bytes_input_tensors)
                 )
             ),
@@ -89,7 +96,7 @@ function pgf_io_plot(f; file = "plot.tex", formulations = "synchronous")
                     thick,
                  },
                  Coordinates(
-                    dram_sizes, 
+                    dram_sizes,
                     getname(d.runs, :bytes_dram_output_tensors) ./ getname(d.runs, :bytes_output_tensors)
                  )
             ),

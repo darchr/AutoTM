@@ -1,14 +1,16 @@
 # Plot ratios of PMEM to DRAM on the x-axis.
-function pgf_speedup(f, ratios::Vector{<:Rational}; 
-        file = "plot.tex", 
+function pgf_speedup(f, ratios::Vector{<:Rational}, cache;
+        file = "plot.tex",
         formulations = ("numa", "static", "synchronous")
     )
 
-    data = load_save_files(f, formulations)
+    paths = canonical_path.(Ref(f), formulations, Ref(cache), Ref(nGraph.Backend("CPU")))
+    data = deserialize.(paths)
+
     pmm_performance = get_pmm_performance(data)
     dram_performance = get_dram_performance(data)
 
-    plots = [] 
+    plots = []
     for (datum, formulation) in zip(data, formulations)
         @show formulation
 
@@ -31,7 +33,7 @@ function pgf_speedup(f, ratios::Vector{<:Rational};
         # Emit the plot for this series.
         append!(plots, [
             @pgf(PlotInc(
-                Coordinates(x, y),     
+                Coordinates(x, y),
             )),
             @pgf(LegendEntry("$formulation")),
         ])
