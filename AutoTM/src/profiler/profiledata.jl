@@ -74,7 +74,7 @@ function gettime(
     config, #= Not used =#
     enum)
 
-    return 10^3 * get_time(gettime(P, N), enum)
+    return get_time(gettime(P, N), enum)
 end
 
 hastime(P::ProfileData{nGraph.CPU}, N::NodeDescriptor, config) =
@@ -174,6 +174,8 @@ function liveness_analysis(nodes::Vector{NodeDescriptor}, io, constants)
     # The BatchNorm pass can mess up some aspects of outputs from liveness analysis.
     # Here, we check to see if any tensor shows up in the new list but not the free list.
     # If so, we sets its free point to the place where it was created.
+    #
+    # I hate batchnorm
     tensor_start = Dict{TensorDescriptor,Int}()
     for (index, list) in enumerate(new_list), tensor in list
         tensor_start[tensor] = index

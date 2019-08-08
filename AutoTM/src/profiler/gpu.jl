@@ -75,14 +75,18 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.GPU};
                 bytes = UInt64[]
                 GC.gc()
                 alloc_failed = nGraph.Lib.get_algo_options(
-                    nGraph.getpointer(node), 
-                    enums, 
-                    times, 
+                    nGraph.getpointer(node),
+                    enums,
+                    times,
                     bytes
                 )
 
+                # cuDNN returns the results of its time in milliseconds.
+                #
+                # Convert to microseconds here to make it uniform with the rest of 
+                # the timings.
                 algo_list = [
-                    (enum = e, time = t, bytes = b) for (e,t,b) in zip(enums, times, bytes)
+                    (enum = e, time = 1000 * t, bytes = b) for (e,t,b) in zip(enums, times, bytes)
                 ]
 
                 !allow_alloc_fail && alloc_failed && throw(error("""
@@ -216,7 +220,7 @@ function check_profile(fex::nGraph.FluxExecutable, frame; only_greater = false)
             end
 
             actual = perf[nGraph.name(node)]
-            expected = 1000 * get_time(gettime(data, node), algo_enum)
+            expected = get_time(gettime(data, node), algo_enum)
 
             # Get the expected move time
             _async = get(frame.model[:tensor_async], nGraph.name(node), nothing)
@@ -276,11 +280,40 @@ function fastest_time(frame)
     time = 0.0
     for node in filter(hasprofile, nodes(data))
         if nGraph.Lib.can_select_algo(nGraph.getpointer(node))
-            time += 1000 * minimum(get_times(gettime(data, node)))
+            time += minimum(get_times(gettime(data, node)))
         else
             time += gettime(data, node)
         end
     end
 
     return time
+end
+
+function show_algorithm_slowdown(frame)
+    data = frame.profile_data
+    model = frame.model
+
+    for node in Iterators.filter(hasprofile, nodes(data))
+        if nGraph.Lib.can_select_algo(nGraph.getpointer(node))
+            printstyled("Checking node $(nGraph.name(node))\n"; color = :green)
+
+            # Get the fastest executing algorithm
+            time, ind = findmin(get_times(gettime(data, node)))
+            enum = get_enums(gettime(data, node))[ind]
+            println("    Fastest Enum: $enum. (time) $time")
+
+            # Get the actual used algorithm
+            algo_var = frame.model[:algo_var]
+            local algo_enum
+            for enum in get_enums(gettime(data, node))
+                if approx_one(algo_var[node, enum])
+                    algo_enum = enum
+                    break
+                end
+            end
+
+            time = get_time(gettime(data, node), algo_enum)
+            println("    Actual Enum: $enum. (time) $(time)")
+        end
+    end
 end

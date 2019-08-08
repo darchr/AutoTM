@@ -523,7 +523,7 @@ function add_tensors!(frame::Frame)
                     sum(tensor_graphs[tensor, e] for e in oe) - 
                     sum(tensor_graphs[tensor, e] for e in ie) == 0
                 )
-           end
+            end
         end
     end
 

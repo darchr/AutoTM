@@ -23,7 +23,6 @@ gpu_fns() = (
     DenseNet(128),
     Vgg19(64),
     Vgg19(128),
-    Vgg19(256),
 )
 
 function gpu_profile(; recache = false)

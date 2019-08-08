@@ -168,7 +168,7 @@ function ratiosearch(f, backend, func, opt; search_ratio = true, refinements = 7
     for i in 1:refinements
         # Use a step size starting with 1 and increasing or decreasing by the step size
         # until the ratio crosses the boundary of what we want.
-        step = 1 // (2 ^ (i - 1))
+        step = 1 // (2 ^ (i))
         @info """
         ------------------------
         Performing Refinement Iteration $i
@@ -176,7 +176,7 @@ function ratiosearch(f, backend, func, opt; search_ratio = true, refinements = 7
         ------------------------
         """
 
-        for _ in 1:2
+        for _ in 1:1
             current_ratio -= step
             current_ratio < 0 && break
 
