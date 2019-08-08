@@ -20,15 +20,28 @@
 # The reason I didn't do this for the CPU code is because didn't really think of it at the
 # time. With some work, this strategy could be unified across CPU and GPu and would actually
 # probably reduce a lot of the cluster that is the CPU code :(
-
-enable_cuda_managed() = ENV["NGRAPH_GPU_CUDA_MALLOC_MANAGED"] = true
-disable_cuda_managed() = delete!(ENV, "NGRAPH_GPU_CUDA_MALLOC_MANAGED")
-
 function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.GPU};
-        cache = GPUKernelCache(BASE_GPU_CACHE_PATH),
+        cache = nothing,
+        allow_alloc_fail = false,
+        recache = false,
+        # Other keywords to make compatible with the CPU profile
+        kw...
     )
 
+    isnothing(cache) && error("Need to define a cache")
+
     data = ProfileData(f, nGraph.GPU)
+
+    # Clean up cached configs if passed the `recache` option
+    if recache
+        @info "Removing Cached Configs"
+        for node in nodes(data)
+            hasprofile(node) || continue
+            kernel_params = GPUKernelParams(node)
+            delete!(cache, kernel_params)
+        end
+    end
+
 
     # We follow a strategy similar to the CPU, except much less fancy.
     #
@@ -60,12 +73,25 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.GPU};
                 enums = UInt32[]
                 times = Float32[]
                 bytes = UInt64[]
-                nGraph.Lib.get_algo_options(nGraph.getpointer(node), enums, times, bytes)
                 GC.gc()
+                alloc_failed = nGraph.Lib.get_algo_options(
+                    nGraph.getpointer(node), 
+                    enums, 
+                    times, 
+                    bytes
+                )
+
                 algo_list = [
                     (enum = e, time = t, bytes = b) for (e,t,b) in zip(enums, times, bytes)
                 ]
+
+                !allow_alloc_fail && alloc_failed && throw(error("""
+                    Not enough memory cleaned up to sufficiently profile everything.
+                    Restart the process and try again.
+                    """))
+
                 cache[kernel_params] = algo_list
+                save(cache)
             end
         end
     end

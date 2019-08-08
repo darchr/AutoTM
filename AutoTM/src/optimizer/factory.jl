@@ -11,6 +11,7 @@ function factory(
     return ratiosearch(_factory, backend, func, opt; kw...)
 end
 
+struct CompilerRetry <: Exception end
 function _factory(
         backend::nGraph.Backend,
         func,
@@ -18,6 +19,7 @@ function _factory(
         # Useful for the GPU case
         adjust_io = false,
         defrag = true,
+        just_profile = false,
         profile_kw...
     ) where {T <: AbstractOptimizer}
 
@@ -37,6 +39,7 @@ function _factory(
         # better memory characteristics
         priority_pass!(f)
         data = profile(f, backend; profile_kw...)
+        just_profile && throw(CompilerExit())
 
         # Initialize the node dram limits if needed
         if !isdefined(limits_ref, :x)
@@ -79,7 +82,7 @@ function _factory(
             modeltype = update(frame_ref[].modeltype, profile(f, backend; profile_kw...))
             limits_ref[] = modeltype.dram_limits
 
-            throw(CompilerExit())
+            throw(CompilerRetry())
         end
     end
 
@@ -107,7 +110,7 @@ function _factory(
                 kw...
             )
         catch e
-            isa(e, CompilerExit) || rethrow(e)
+            isa(e, CompilerRetry) || rethrow(e)
             retry = true
         end
     end

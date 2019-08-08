@@ -43,7 +43,8 @@ hasprofile(op::nGraph.Node) = hasprofile(nGraph.description(op))
 hasprofile(x::NodeDescriptor) = hasprofile(nGraph.description(x))
 
 # Hook to exclude some nodes from computation overlap
-is_memory_intensive(op_description::String) = in(op_description, ("MatmulBias",))
+#is_memory_intensive(op_description::String) = in(op_description, ("MatmulBias",))
+is_memory_intensive(op_description::String) = false
 is_memory_intensive(op::nGraph.Node) = is_memory_intensive(nGraph.description(op))
 is_memory_intensive(op::NodeDescriptor) = is_memory_intensive(nGraph.description(op))
 

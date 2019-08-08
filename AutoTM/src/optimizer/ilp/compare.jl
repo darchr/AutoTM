@@ -3,11 +3,11 @@
 #####
 
 function Profiler._compare!(
-        stats, 
-        f, 
-        opt::ILPOptimizer, 
-        backend::nGraph.Backend{nGraph.CPU}; 
-        skip_run = false, 
+        stats,
+        f,
+        opt::ILPOptimizer,
+        backend::nGraph.Backend{nGraph.CPU};
+        skip_run = false,
         cache = nothing,
         kw...,
     )
@@ -107,10 +107,18 @@ end
 #####
 ##### _compare! - GPU Edition
 #####
-function _compare!(stats, f, opt::ILPOptimizer, backend::nGraph.Backend{nGraph.GPU}; kw...)
-    fex, frame = factory(backend, f, opt; kw...)
+function Profiler._compare!(
+        stats,
+        f,
+        opt::ILPOptimizer,
+        backend::nGraph.Backend{nGraph.GPU};
+        cache = nothing,
+        kw...
+    )
+
+    fex, frame = factory(backend, f, opt; cache = cache, kw...)
     GC.gc()
-    data = frame.profile_data
+    data = profile(fex; cache = cache)
 
     # Get the predicted run time and then the actual run time
     nt = Dict(
@@ -173,7 +181,7 @@ function _compare!(stats, f, opt::ILPOptimizer, backend::nGraph.Backend{nGraph.G
 
         # Timing Breakdowns
         :actual_runtime => gettime(fex),
-        :oracle_time => fastest_time(frame),
+        :oracle_time => Profiler.fastest_time(frame),
         #:kernel_times => read_timing_data(fex.ex.ngraph_function)
     )
 
