@@ -104,10 +104,6 @@ function (M::Asynchronous{Int})(data, backend::nGraph.Backend)
                              )
 end
 
-# Helper for making some generic functions
-approx_one(x) = isapprox(x, one(x); atol = 1e-3)
-approx_one(x::JuMP.VariableRef) = approx_one(value(x))
-
 # Implementations
 include("formulation.jl")
 include("configure.jl")

@@ -20,15 +20,28 @@
 # The reason I didn't do this for the CPU code is because didn't really think of it at the
 # time. With some work, this strategy could be unified across CPU and GPu and would actually
 # probably reduce a lot of the cluster that is the CPU code :(
-
-enable_cuda_managed() = ENV["NGRAPH_GPU_CUDA_MALLOC_MANAGED"] = true
-disable_cuda_managed() = delete!(ENV, "NGRAPH_GPU_CUDA_MALLOC_MANAGED")
-
 function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.GPU};
-        cache = GPUKernelCache(BASE_GPU_CACHE_PATH),
+        cache = nothing,
+        allow_alloc_fail = false,
+        recache = false,
+        # Other keywords to make compatible with the CPU profile
+        kw...
     )
 
+    isnothing(cache) && error("Need to define a cache")
+
     data = ProfileData(f, nGraph.GPU)
+
+    # Clean up cached configs if passed the `recache` option
+    if recache
+        @info "Removing Cached Configs"
+        for node in nodes(data)
+            hasprofile(node) || continue
+            kernel_params = GPUKernelParams(node)
+            delete!(cache, kernel_params)
+        end
+    end
+
 
     # We follow a strategy similar to the CPU, except much less fancy.
     #
@@ -60,12 +73,29 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.GPU};
                 enums = UInt32[]
                 times = Float32[]
                 bytes = UInt64[]
-                nGraph.Lib.get_algo_options(nGraph.getpointer(node), enums, times, bytes)
                 GC.gc()
+                alloc_failed = nGraph.Lib.get_algo_options(
+                    nGraph.getpointer(node),
+                    enums,
+                    times,
+                    bytes
+                )
+
+                # cuDNN returns the results of its time in milliseconds.
+                #
+                # Convert to microseconds here to make it uniform with the rest of 
+                # the timings.
                 algo_list = [
-                    (enum = e, time = t, bytes = b) for (e,t,b) in zip(enums, times, bytes)
+                    (enum = e, time = 1000 * t, bytes = b) for (e,t,b) in zip(enums, times, bytes)
                 ]
+
+                !allow_alloc_fail && alloc_failed && throw(error("""
+                    Not enough memory cleaned up to sufficiently profile everything.
+                    Restart the process and try again.
+                    """))
+
                 cache[kernel_params] = algo_list
+                save(cache)
             end
         end
     end
@@ -190,7 +220,7 @@ function check_profile(fex::nGraph.FluxExecutable, frame; only_greater = false)
             end
 
             actual = perf[nGraph.name(node)]
-            expected = 1000 * get_time(gettime(data, node), algo_enum)
+            expected = get_time(gettime(data, node), algo_enum)
 
             # Get the expected move time
             _async = get(frame.model[:tensor_async], nGraph.name(node), nothing)
@@ -250,11 +280,40 @@ function fastest_time(frame)
     time = 0.0
     for node in filter(hasprofile, nodes(data))
         if nGraph.Lib.can_select_algo(nGraph.getpointer(node))
-            time += 1000 * minimum(get_times(gettime(data, node)))
+            time += minimum(get_times(gettime(data, node)))
         else
             time += gettime(data, node)
         end
     end
 
     return time
+end
+
+function show_algorithm_slowdown(frame)
+    data = frame.profile_data
+    model = frame.model
+
+    for node in Iterators.filter(hasprofile, nodes(data))
+        if nGraph.Lib.can_select_algo(nGraph.getpointer(node))
+            printstyled("Checking node $(nGraph.name(node))\n"; color = :green)
+
+            # Get the fastest executing algorithm
+            time, ind = findmin(get_times(gettime(data, node)))
+            enum = get_enums(gettime(data, node))[ind]
+            println("    Fastest Enum: $enum. (time) $time")
+
+            # Get the actual used algorithm
+            algo_var = frame.model[:algo_var]
+            local algo_enum
+            for enum in get_enums(gettime(data, node))
+                if approx_one(algo_var[node, enum])
+                    algo_enum = enum
+                    break
+                end
+            end
+
+            time = get_time(gettime(data, node), algo_enum)
+            println("    Actual Enum: $enum. (time) $(time)")
+        end
+    end
 end

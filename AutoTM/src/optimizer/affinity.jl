@@ -4,6 +4,21 @@
 # sensible locations
 
 # A follower node is one that should be scheduled as soon as possible
+const FOLLOWERS = [
+    "Result",
+    "Sum",
+    "Add",
+    "Subtract",
+    "MaxPool",
+    "AvgPool",
+    "Concat",
+    "Max",
+    "Min",
+    "Multiply",
+    "Relu",
+    "Reshape",
+    "Dot",
+]
 function is_follower(node)::Bool
     # If this is a move node into remote memory
     if (ismovesync(node) && nGraph.is_persistent(first(outputs(node)))) || ismoveasync(node)
@@ -12,11 +27,16 @@ function is_follower(node)::Bool
 
     # Default set of follower nodes
     description = nGraph.description(node)
-    return any(x -> startswith(description, x), ("Result", "Sum", "Add"))
+    return any(x -> startswith(description, x), FOLLOWERS)
 end
 
 # A leader node should be scheduled as late as possible, but clumped before its trailing
 # output
+const LEADERS = [
+    "Broadcast",
+    "ConvertLayout",
+    "Slice",
+]
 function is_leader(node)::Bool
     # If this is a move node prefetching memory, do this as soon as possible.
     if (ismovesync(node) && !nGraph.is_persistent(first(outputs(node))))
@@ -25,7 +45,7 @@ function is_leader(node)::Bool
 
     # Default leader nodes
     description = nGraph.description(node)
-    return any(x -> startswith(description, x), ("Broadcast", "ConvertLayout"))
+    return any(x -> startswith(description, x), LEADERS)
 end
 
 # Heuristic to assign priorities to nodes in the graph to yield better schedules

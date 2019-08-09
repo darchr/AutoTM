@@ -37,9 +37,10 @@ export TensorDescriptor, NodeDescriptor, inputs, outputs, description
 export getratio, ratio_string, footprint, compare_ratio
 
 # Random
-export find_vertex, find_edge, findonly, dict_push!
+export approx_one, find_vertex, find_edge, findonly, dict_push!
 
 import LightGraphs
+import JuMP 
 
 # Import all of nGraph plus some commonly used names
 #
@@ -65,6 +66,11 @@ include("ngraph.jl")
 include("ratio.jl")
 
 # Random other stuff
+#
+# Helper for making some generic functions
+approx_one(x) = isapprox(x, one(x); atol = 1e-3)
+approx_one(x::JuMP.VariableRef) = approx_one(JuMP.value(x))
+
 
 """
     findonly(f, itr)

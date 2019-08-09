@@ -295,7 +295,7 @@ function _getgadgets(A::ILPHolder{IsAsynchronous}, data::ProfileData, t::TensorD
             ref = node
 
         # Check if there is a user node within `bound`. If so, make this an async move node.
-        elseif hasprofile(node) && !is_memory_intensive(node) &&
+        elseif hasprofile(node) && !Utils.is_memory_intensive(node) &&
             any(
                 in(users),
                 (nodes(data, i) for i in max(ind-bound, 1):min(ind+bound, length(nodes(data))))
@@ -522,7 +522,7 @@ function add_tensors!(frame::Frame)
                     sum(tensor_graphs[tensor, e] for e in oe) -
                     sum(tensor_graphs[tensor, e] for e in ie) == 0
                 )
-           end
+            end
         end
     end
 

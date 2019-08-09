@@ -27,7 +27,7 @@ const BANDWIDTHS = (
     cpu_dram_pmem_async = 2500,
 
     # GPU Basically same in all diractions
-    gpu = 12000
+    gpu = 12000,
 )
 
 _bw_remote_local_sync(::nGraph.Backend{nGraph.CPU}) = BANDWIDTHS[:cpu_pmem_dram_sync]

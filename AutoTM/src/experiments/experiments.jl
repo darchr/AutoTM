@@ -28,15 +28,19 @@ const GPUDATA = joinpath(DATADIR, "gpu")
 
 const SINGLE_KERNEL_PATH = joinpath(DATADIR, "caches", "single_cpu_profile.jls")
 const MULTIPLE_KERNEL_PATH = joinpath(DATADIR, "caches", "multiple_cpu_profile.jls")
+const GPU_CACHE = joinpath(CACHEDIR, "gpu_profile.jls")
+
 const TILING_FACTOR = Dict(
     SINGLE_KERNEL_PATH => 1,
     MULTIPLE_KERNEL_PATH => 4,
+    GPU_CACHE => 1,
 )
 
 # Easy model declarations
 include("models.jl")
 include("conventional.jl")
 include("large.jl")
+include("gpu.jl")
 
 #####
 ##### Trials
@@ -49,6 +53,7 @@ savedir(::nGraph.Backend{nGraph.CPU}) = CPUDATA
 savedir(::nGraph.Backend{nGraph.GPU}) = GPUDATA
 
 getcache(::nGraph.Backend{nGraph.CPU}, path::String) = CPUKernelCache(path)
+getcache(::nGraph.Backend{nGraph.GPU}, path::String) = GPUKernelCache(path)
 
 canonical_path(f, opt::Optimizer.AbstractOptimizer, cache::String, backend::nGraph.Backend, suffix = nothing) =
     canonical_path(f, Optimizer.name(opt), cache, backend, suffix)
