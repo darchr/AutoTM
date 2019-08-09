@@ -1,14 +1,15 @@
 """
 `pairs`: Vector of Pairs, first element is a model, second element is a formulation string.
 """
-function pgf_cost(pairs::Vector{<:Pair}, ratios::Vector{<:Rational}; 
+function pgf_cost(pairs::Vector{<:Pair}, ratios::Vector{<:Rational}, cache;
         cost_ratio = 2.1,
-        file = "plot.tex", 
+        file = "plot.tex",
     )
 
-    plots = [] 
+    backend = nGraph.Backend("CPU")
+    plots = []
     for (f, formulation) in pairs
-        data = load_save_files(f, formulation)
+        data = deserialize(canonical_path(f, formulation, cache, backend))
         dram_performance = get_dram_performance(data)
 
         # This x and y data point
@@ -26,7 +27,7 @@ function pgf_cost(pairs::Vector{<:Pair}, ratios::Vector{<:Rational};
         # Emit the plot for this series.
         append!(plots, [
             @pgf(PlotInc(
-                Coordinates(x, y),     
+                Coordinates(x, y),
             )),
             @pgf(LegendEntry(replace(titlename(f), "_" => " "))),
         ])
@@ -41,7 +42,7 @@ function pgf_cost(pairs::Vector{<:Pair}, ratios::Vector{<:Rational};
     symbolic_coords = ratio_string.(ratios)
 
     # Bar axis
-    tikz = TikzPicture() 
+    tikz = TikzPicture()
     axs = @pgf Axis(
         {
             "axis_y_line*=left",
@@ -94,7 +95,7 @@ function pgf_cost(pairs::Vector{<:Pair}, ratios::Vector{<:Rational};
             ymin = 0,
             ymax = 1,
             symbolic_x_coords = symbolic_coords,
-            ylabel = "Memory cost relative to all DRAM"
+            ylabel = "Memory cost\\\\relative to all DRAM"
         },
         PlotInc(
             {

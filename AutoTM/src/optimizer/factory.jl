@@ -125,14 +125,14 @@ end
 #####
 
 """
-    ratiosearch(f, backend, func, opt; search_ratio = true, refinements = 7, kw...)
+    ratiosearch(f, backend, func, opt; search_ratio = true, refinements = 4, kw...)
 
 `f` - 
 `func` - An AutoTM compatible function constructor
 
 Further keywords get passed to the inner call to `f`.
 """
-function ratiosearch(f, backend, func, opt; search_ratio = true, refinements = 7, kw...)
+function ratiosearch(f, backend, func, opt; search_ratio = true, refinements = 4, kw...)
     @info "Trying Ratio $(getratio(opt))"
 
     # Just return the inner factory if we aren't interesting in performing a binary search
@@ -165,7 +165,7 @@ function ratiosearch(f, backend, func, opt; search_ratio = true, refinements = 7
     for i in 1:refinements
         # Use a step size starting with 1 and increasing or decreasing by the step size
         # until the ratio crosses the boundary of what we want.
-        step = 1 // (2 ^ (i - 1))
+        step = 1 // (2 ^ (i))
         @info """
         ------------------------
         Performing Refinement Iteration $i
@@ -173,7 +173,7 @@ function ratiosearch(f, backend, func, opt; search_ratio = true, refinements = 7
         ------------------------
         """
 
-        for _ in 1:2
+        for _ in 1:1
             current_ratio -= step
             current_ratio < 0 && break
 

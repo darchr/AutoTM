@@ -45,7 +45,7 @@ mutable struct ILPHolder{T <: ILPFormulationType}
     write_bandwidth_async::Int64
 
     # Flag to determine if we need to defrag
-    defrag::Bool 
+    defrag::Bool
 end
 
 # Add factory methods
@@ -261,7 +261,6 @@ isasync(em::EdgeMetadata) = isasync(em.edgetype)
 #####
 
 # Preprocessing basically involves creating the tensor graphs for each intermediate tensor.
-
 function _liverange(data::ProfileData, t::TensorDescriptor)
     start = findfirst(isequal(_producer(t, data)), nodes(data))::Int
     stop = findlast(isequal(_consumer(t, data)), nodes(data))
@@ -520,7 +519,7 @@ function add_tensors!(frame::Frame)
                 oe = collect(outedges(g, v))
                 ie = collect(inedges(g, v))
                 @constraint(frame.model,
-                    sum(tensor_graphs[tensor, e] for e in oe) - 
+                    sum(tensor_graphs[tensor, e] for e in oe) -
                     sum(tensor_graphs[tensor, e] for e in ie) == 0
                 )
            end

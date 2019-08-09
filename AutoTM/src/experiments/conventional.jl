@@ -76,14 +76,15 @@ function run_conventional()
         #test_vgg(),
         #conventional_inception(),
         #conventional_resnet(),
-        conventional_vgg(),
+        #conventional_vgg(),
+        conventional_densenet(), 
     )
 
     ratios = common_ratios()
 
     optimizers = Iterators.flatten((
-        #[Optimizer.Static(r) for r in ratios],
-        [Optimizer.Synchronous(r) for r in ratios],
+        [Optimizer.Static(r) for r in ratios],
+        #[Optimizer.Synchronous(r) for r in ratios],
     ))
 
     caches = [
@@ -127,19 +128,11 @@ function plot_conventional_error()
         conventional_inception(),
         conventional_resnet(),
         conventional_vgg(),
+        conventional_densenet(),
     )
 
     ratios = common_ratios()
-    # Start out with the ratios of the whole memory we want to devote to DRAM
-    #ratios = [ 1 // i for i in 1:10 ]
 
-    ## Add some more fractions for the higher end of DRAM and for the case of all PMEM
-    #push!(ratios, 2 // 3, 3 // 4, 0 // 1)
-    #sort!(ratios)
-
-    ## Convert these ratios into the PMEM // DRAM ratios
-    #pmem_to_dram_ratios = (one(eltype(ratios)) .- ratios) ./ ratios
-    #ratios = pmem_to_dram_ratios
     formulations = (
         "static",
         "synchronous",
@@ -154,6 +147,27 @@ function plot_conventional_error()
     suffix = nothing
 
     Visualizer.pgf_error_plot(fns, ratios, caches; formulations = formulations, suffix = suffix)
+end
+
+#####
+##### Cost Plot
+#####
+
+function plot_costs()
+    pairs = [
+        conventional_vgg() => "synchronous",
+        conventional_densenet() => "synchronous",
+        conventional_resnet() => "synchronous",
+        conventional_inception() => "synchronous",
+    ]
+
+    ratios = common_ratios();
+
+    # Get rid of the all PMEM and all DRAM case
+    deleteat!(ratios, findfirst(isequal(0 // 1), ratios))
+    cache = SINGLE_KERNEL_PATH
+
+    Visualizer.pgf_cost(pairs, ratios, cache; cost_ratio = 2.1)
 end
 
 #####
@@ -188,8 +202,8 @@ function inception_case_study()
     ratios = case_study_ratios()
 
     optimizers = Iterators.flatten((
-        #[Optimizer.Static(r) for r in pmem_to_dram_ratios],
-        [Optimizer.Synchronous(r) for r in ratios],
+        [Optimizer.Static(r) for r in ratios],
+        #[Optimizer.Synchronous(r) for r in ratios],
     ))
 
     cache = SINGLE_KERNEL_PATH
@@ -205,15 +219,15 @@ function inception_case_study_plots()
     cache = SINGLE_KERNEL_PATH
     suffix = "study"
     formulations = (
-        #"static",
+        "static",
         "synchronous",
     )
 
     # Performance line graph
-    # Visualizer.pgf_plot_performance(f, cache;
-    #     file = "inception_perf.tex",
-    #     formulations = ("static", "synchronous"),
-    # )
+    Visualizer.pgf_plot_performance(f, cache, suffix;
+        file = "inception_perf.tex",
+        formulations = ("static", "synchronous"),
+    )
 
     # Input/output tensor graph
     Visualizer.pgf_io_plot(f, cache, suffix;
