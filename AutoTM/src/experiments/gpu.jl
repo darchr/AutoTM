@@ -12,20 +12,21 @@ const GPU_MEMORY_OVERHEAD = 561_000_000
 const GPU_ADJUSTED_MEMORY = GPU_MAX_MEMORY - GPU_MEMORY_OVERHEAD
 
 gpu_fns() = (
-    Inception_v4(64),
-    Inception_v4(128),
-    Inception_v4(256),
-    Resnet200(32),
-    Resnet200(64),
-    Resnet200(128),
-    DenseNet(32),
-    DenseNet(64),
-    DenseNet(128),
-    Vgg19(64),
+    # Inception_v4(64),
+    # Inception_v4(128),
+    # Inception_v4(256),
+    # Resnet200(32),
+    # Resnet200(64),
+    # Resnet200(128),
+    # DenseNet(32),
+    # DenseNet(64),
+    # DenseNet(128),
+    # Vgg19(64),
     Vgg19(128),
+    #Vgg19(256),
 )
 
-function gpu_profile(; recache = false)
+function gpu_profile(; recache = false, allow_alloc_fail = false)
     fns = gpu_fns()
     opt = Optimizer.Synchronous(GPU_ADJUSTED_MEMORY)
     cache = GPU_CACHE
@@ -34,10 +35,10 @@ function gpu_profile(; recache = false)
     for f in fns
         @show name(f)
         try
-            execute(f, opt, cache, backend; 
-                just_profile = true, 
+            execute(f, opt, cache, backend;
+                just_profile = true,
                 skip_base_check = true,
-                allow_alloc_fail = false,
+                allow_alloc_fail = allow_alloc_fail,
                 recache = recache,
             )
         catch e
@@ -46,12 +47,12 @@ function gpu_profile(; recache = false)
     end
 end
 
-function gpu_go()
-    fns = gpu_fns()
+function gpu_go(i)
+    fns = gpu_fns()[i]
     limit = GPU_ADJUSTED_MEMORY
 
     optimizers = (
-        #Optimizer.Synchronous(limit),
+        Optimizer.Synchronous(limit),
         Optimizer.Asynchronous(limit),
     )
 

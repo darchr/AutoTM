@@ -96,6 +96,19 @@ function run_conventional()
 end
 
 #####
+##### Front Plot
+#####
+
+function plot_front()
+    f = conventional_inception()
+    ratio = 4 // 1
+    cache = SINGLE_KERNEL_PATH
+    formulations = ("numa", "synchronous",)
+
+    Visualizer.plot_front(f, ratio, cache; formulations = formulations)
+end
+
+#####
 ##### PMM Speedup Plot
 #####
 

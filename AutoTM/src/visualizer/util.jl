@@ -35,11 +35,18 @@ hasymptote() = """
 }}
 """
 
-hline(y; xl = 0, xu = 1) = """
-\\draw[red, sharp plot, ultra thick] 
+hline(y; xl = 0, xu = 1, color = "red") = """
+\\draw[$color, sharp plot, ultra thick] 
     ({axis cs:$xl,$y} -| {rel axis cs:0,0}) -- 
     ({axis cs:$xu,$y} -| {rel axis cs:1,0});
 """ |> rm_newlines
+
+vline(x; yl = 0, yu = 1, color = "red") = """
+\\draw[$color, sharp plot] ($x, $yl) -- ($x, $yu);
+""" |> rm_newlines
+
+comment(x, y, str; kw...) = @pgf(["\\node[align = center$(format(kw))] at ", Coordinate(x, y), "{$str};"])
+format(kw) = ", " * join(["$a = $b" for (a,b) in kw], ", ")
 
 rm_newlines(str) = join(split(str, "\n"))
 

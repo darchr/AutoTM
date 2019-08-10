@@ -7,6 +7,9 @@ footprint(f::nGraph.NFunction) =
     convert(Int, nGraph.get_pmem_pool_size(f) + nGraph.get_temporary_pool_size(f))
 
 function getratio(datum::Dict)
+    r = get(datum, :ratio, nothing)
+    isnothing(r) || return r
+
     pmem = convert(Int, datum[:pmem_alloc_size])
     dram = convert(Int, datum[:dram_alloc_size])
     return pmem // dram

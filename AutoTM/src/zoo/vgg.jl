@@ -2,6 +2,17 @@ abstract type AbstractVgg end
 struct Vgg19  <: AbstractVgg end
 struct Vgg416 <: AbstractVgg end
 
+struct Shard
+    layers
+end
+(S::Shard)(x) = cat(map(f -> f(x), S.layers)...; dims = 3)
+
+front(i = 16) = Chain(
+    Conv((3,3), 3 => i, relu; pad = 1),
+    Conv((3,3), i => i, relu; pad = 1),
+    MaxPool((2,2)),
+)
+
 vgg19() = Chain(
         # First Layer
         Conv((3,3), 3 => 64, relu; pad = 1),
