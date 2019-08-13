@@ -17,6 +17,7 @@ include("configure.jl")
 
 # Specific optimizer backends
 include("ilp/ilp.jl")
+include("numa/numa.jl")
 
 #####
 ##### For gathering statistics

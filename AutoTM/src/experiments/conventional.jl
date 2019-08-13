@@ -15,10 +15,7 @@ common_ratios() = [
     1 // 0,
     8 // 1,
     4 // 1,
-    #2 // 1,
     1 // 1,
-    #1 // 2,
-    #1 // 4,
     0 // 1,
 ]
 
@@ -30,17 +27,9 @@ conventional_functions() = [
     conventional_transformer(),
 ]
 
-function single_kernel_profile(; recache = false)
-    fns = (
-        #test_vgg(),
-        #conventional_inception(),
-        #conventional_resnet(),
-        #conventional_vgg(),
-        conventional_densenet(),
-    )
-
+function single_kernel_profile(fns; recache = false)
     backend = nGraph.Backend("CPU")
-    for f in fns
+    for f in wrap(fns)
         fex = actualize(backend, f)
         cache = Profiler.CPUKernelCache(SINGLE_KERNEL_PATH)
         Profiler.profile(fex;
@@ -76,15 +65,16 @@ function run_conventional()
         #test_vgg(),
         #conventional_inception(),
         #conventional_resnet(),
-        #conventional_vgg(),
-        conventional_densenet(), 
+        conventional_vgg(),
+        #conventional_densenet(),
     )
 
     ratios = common_ratios()
 
     optimizers = Iterators.flatten((
-        [Optimizer.Static(r) for r in ratios],
+        #[Optimizer.Static(r) for r in ratios],
         #[Optimizer.Synchronous(r) for r in ratios],
+        [Optimizer.Numa(r) for r in ratios],
     ))
 
     caches = [
@@ -114,7 +104,8 @@ end
 
 function plot_speedup(
         model;
-        formulations = ("static", "synchronous"),
+        formulations = ("numa", "static", "synchronous"),
+        #formulations = ("static", "synchronous"),
         cache = SINGLE_KERNEL_PATH,
     )
     ratios = common_ratios();
@@ -137,7 +128,6 @@ end
 
 function plot_conventional_error()
     fns = (
-        #test_vgg(),
         conventional_inception(),
         conventional_resnet(),
         conventional_vgg(),

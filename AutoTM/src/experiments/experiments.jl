@@ -55,12 +55,13 @@ savedir(::nGraph.Backend{nGraph.GPU}) = GPUDATA
 getcache(::nGraph.Backend{nGraph.CPU}, path::String) = CPUKernelCache(path)
 getcache(::nGraph.Backend{nGraph.GPU}, path::String) = GPUKernelCache(path)
 
+# Unwrap the string name from `cache`
 canonical_path(f, opt::Optimizer.AbstractOptimizer, cache::String, backend::nGraph.Backend, suffix = nothing) =
     canonical_path(f, Optimizer.name(opt), cache, backend, suffix)
 
 function canonical_path(f, opt::String, cache::String, backend::nGraph.Backend, suffix = nothing)
     # Find the prefix for the cache
-    cachename = first(splitext(basename(cache))) 
+    cachename = first(splitext(basename(cache)))
     n = join((name(f), opt, cachename), "_")
     if !isnothing(suffix)
         n = n * "_$suffix"
@@ -73,8 +74,8 @@ function execute(fns, opts, caches, backend, suffix = nothing; kw...)
     # Wrap functions, optimizers, and caches so we can safely iterate over everything
     for f in wrap(fns), cache in wrap(caches), opt in wrap(opts)
         savefile = canonical_path(f, opt, cache, backend, suffix)
-        Profiler.compare(f, opt, backend; 
-            statspath = savefile, 
+        Profiler.compare(f, opt, backend;
+            statspath = savefile,
 
             # Set the cache as well as how many times to replicate kernels for profiling
             cache = getcache(backend, cache),

@@ -59,7 +59,7 @@ function pgf_price_performance(pairs::Vector{<:Pair}, ratios::Vector{<:Rational}
             {
                  at = Coordinate(-0.05, 1.05),
                  anchor = "south west",
-                 legend_columns = -1
+                 legend_columns = 2,
             },
             ymin = 0,
             symbolic_x_coords = symbolic_coords,

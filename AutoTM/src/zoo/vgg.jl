@@ -7,14 +7,16 @@ struct Shard
 end
 (S::Shard)(x) = cat(map(f -> f(x), S.layers)...; dims = 3)
 
-front(i = 16) = Chain(
-    Conv((3,3), 3 => i, relu; pad = 1),
-    Conv((3,3), i => i, relu; pad = 1),
+_c1(i = 16) = Conv((3,3), 3 => i, relu; pad = 1)
+_c2(i = 16) = Chain(
+    Conv((3,3), 64 => i, relu; pad = 1),
     MaxPool((2,2)),
 )
 
 vgg19() = Chain(
         # First Layer
+        #Shard([_c1() for _ in 1:4]),
+        #Shard([_c2() for _ in 1:4]),
         Conv((3,3), 3 => 64, relu; pad = 1),
         Conv((3,3), 64 => 64, relu; pad = 1),
         MaxPool((2,2)),

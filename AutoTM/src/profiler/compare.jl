@@ -201,7 +201,7 @@ function compare_kernel_times(fex::nGraph.FluxExecutable, data::ProfileData)
             continue
         end
 
-        op_name = name(op_wrapped)
+        op_name = nGraph.name(op_wrapped)
         config = getconfig(op)
 
         # Get the actual run time.

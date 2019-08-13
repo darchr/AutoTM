@@ -34,13 +34,13 @@ function pgf_error_plot(fns, ratios, caches;
     push!(plt, """
     \\pgfplotsset{
         width=12cm,
-        height=8cm}
+        height=6cm}
     """)
 
     axs = @pgf Axis(
         {
             ybar,
-            bar_width = "5pt",
+            bar_width = "3pt",
             grid = "major",
             xlabel = "DRAM Limit (GB)",
             ylabel = "Relative Predicted Runtime Error \\%",

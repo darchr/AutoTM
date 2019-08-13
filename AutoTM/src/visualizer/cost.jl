@@ -53,7 +53,7 @@ function pgf_cost(pairs::Vector{<:Pair}, ratios::Vector{<:Rational}, cache;
             {
                  at = Coordinate(0.05, 1.05),
                  anchor = "south west",
-                 legend_columns = -1
+                 legend_columns = 2,
             },
             ymin = 0,
             ymax = 1,
@@ -103,6 +103,7 @@ function pgf_cost(pairs::Vector{<:Pair}, ratios::Vector{<:Rational}, cache;
                 text_mark = raw"\$",
                 mark_options = {
                     color = "black",
+                    scale = 1.5,
                 },
             },
             Coordinates(symbolic_coords, y_cost),

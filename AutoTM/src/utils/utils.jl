@@ -65,6 +65,9 @@ include("metagraph.jl")
 include("ngraph.jl")
 include("ratio.jl")
 
+# Memory Allocator Model
+include("allocator.jl")
+
 # Random other stuff
 #
 # Helper for making some generic functions

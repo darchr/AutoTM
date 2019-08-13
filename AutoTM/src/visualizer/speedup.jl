@@ -19,12 +19,21 @@ function pgf_speedup(f, ratios::Vector{<:Rational}, cache;
         y = []
 
         for ratio in ratios
-            ind = findabsmin(x -> compare_ratio(getratio(x), ratio), datum.runs)
+            # Check if we have the "ratio" key
+            runs = datum.runs
+            if haskey(first(runs), :ratio)
+                ind = findfirst(x -> x[:ratio] == ratio, runs)
+            else
+                @info "Performing Ratio Search Fallback"
+                ind = findabsmin(x -> compare_ratio(getratio(x), ratio), datum.runs)
+            end
 
             @show convert(Float64, getratio(datum.runs[ind]))
             @show convert(Float64, ratio)
             @show convert(Float64, compare_ratio(getratio(datum.runs[ind]), ratio))
+
             perf = pmm_performance / datum.runs[ind][:actual_runtime]
+            @show perf
 
             push!(x, ratio_string(ratio))
             push!(y, perf)
@@ -46,8 +55,8 @@ function pgf_speedup(f, ratios::Vector{<:Rational}, cache;
     axs = @pgf Axis(
         {
             ybar,
-            enlarge_x_limits=0.10,
-            bar_width = "8pt",
+            enlarge_x_limits=0.30,
+            bar_width = "15pt",
             width = "10cm",
             height = "5cm",
             legend_style =
