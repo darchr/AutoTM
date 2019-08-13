@@ -3,33 +3,32 @@
 #####
 
 function pgf_gpu_performance_plot(
-        funcs;
+        funcs, cache;
         file = "plot.tex",
         formulations = ("synchronous", "asynchronous")
     )
 
+    backend = nGraph.Backend("GPU")
 
     bar_plots = []
     memory_plots = []
     annotations = []
 
     coords = []
+    batchsize_offset = -0.5
+    network_offset = -1.5
 
     # First step, compute the managed runtime performance for each function as a baseline
     baseline_runtime = Dict{Any,Float64}()
     for (i, f) in enumerate(funcs)
         for formulation in formulations
-            datum = load_save_files(f, formulation)
+            data = deserialize(canonical_path(f, formulation, cache, backend))
             baseline_runtime[f] = min(
                 get(baseline_runtime, f, typemax(Float64)),
-                datum.gpu_managed_runtime[]
+                data.gpu_managed_runtime[]
             )
         end
-        push!(annotations, @pgf([
-            raw"\node at ",
-            Coordinate(i, -0.75),
-            "{$(f.batchsize)};"
-        ]))
+        push!(annotations, comment(i, batchsize_offset, f.batchsize))
     end
 
     # Generate function labels
@@ -39,11 +38,7 @@ function pgf_gpu_performance_plot(
         stop = findlast(x -> titlename(x) == title, funcs)
         center = (start + stop) / 2
 
-        push!(annotations, @pgf([
-            raw"\node at ",
-            Coordinate(center, -1.5),
-            "{$title};",
-        ]))
+        push!(annotations, comment(center, network_offset, title))
     end
 
     # Generate data for the formulations
@@ -52,9 +47,8 @@ function pgf_gpu_performance_plot(
         x = []
 
         for (i, f) in enumerate(funcs)
-            datum = load_save_files(f, formulation)
-
-            speedup = baseline_runtime[f] / minimum(getname(datum.runs, :actual_runtime))
+            data = deserialize(canonical_path(f, formulation, cache, backend))
+            speedup = baseline_runtime[f] / minimum(getname(data.runs, :actual_runtime))
 
             push!(x, i)
             push!(y, speedup)
@@ -72,10 +66,11 @@ function pgf_gpu_performance_plot(
     x = []
     y = []
     for (i, f) in enumerate(funcs)
-        data = load_save_files(f, formulations)
+        data = deserialize.(canonical_path.(Ref(f), formulations, Ref(cache), Ref(backend)))
 
         # Conovert milliseconds to seconds
         ideal = minimum(minimum.(getname.(getname(data, :runs), :oracle_time))) / 1E6
+        ideal = min(ideal, baseline_runtime[f])
         @show ideal
 
         push!(x, i)
@@ -93,20 +88,14 @@ function pgf_gpu_performance_plot(
     plt = TikzDocument()
     push!(plt, """
     \\pgfplotsset{
-        width=10cm,
-        height=4cm
+        width=12cm,
+        height=5cm
     }
     """)
 
     tikz = TikzPicture()
-
-    push!(tikz, """
-        \\pgfplotsset{set layers}
-        """)
     axs = @pgf Axis(
         {
-            "scale_only_axis",
-            "axis_y_line*=left",
             ybar,
             xmin = 0.5,
             xmax = length(funcs) + 0.5,
@@ -121,6 +110,7 @@ function pgf_gpu_performance_plot(
             },
             ymin=0,
             ymajorgrids,
+            ytick = 1:8,
             ylabel_style={
                 align = "center",
             },
