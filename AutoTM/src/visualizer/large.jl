@@ -1,14 +1,15 @@
-function pgf_large_performance(fns; 
+function pgf_large_performance(fns, cache, cache_2lm; 
         file = "plot.tex", 
         formulations = ("static", "synchronous")
     )
     # Step through each function, get the 2lm performance
     bar_plots = []
     coords = String[]
+    backend = nGraph.Backend("CPU")
 
     baseline_runtime = Dict{Any,Float64}()
     for f in fns
-        baseline = load_save_files(f, "2lm")
+        baseline = deserialize(canonical_path(f, "2lm", cache_2lm, backend))
         baseline_runtime[f] = minimum(getname(baseline.runs, :actual_runtime))
 
         push!(coords, "$(titlename(f)) ($(f.batchsize))")
@@ -19,8 +20,8 @@ function pgf_large_performance(fns;
         y = []
 
         for (i, f) in enumerate(fns)
-            datum = load_save_files(f, formulation)
-            speedup = baseline_runtime[f] / minimum(getname(datum.runs, :actual_runtime))
+            data = deserialize(canonical_path(f, formulation, cache, backend))
+            speedup = baseline_runtime[f] / minimum(getname(data.runs, :actual_runtime))
             push!(x, "$(titlename(f)) ($(f.batchsize))")
             push!(y, speedup)
         end
@@ -59,9 +60,9 @@ function pgf_large_performance(fns;
             ylabel_style={
                 align = "center",
             },
-            xticklabel_style={
-                rotate = 15,
-            },
+            # xticklabel_style={
+            #     rotate = 15,
+            # },
             xtick = "data",
 
             # Lables

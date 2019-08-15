@@ -108,6 +108,7 @@ function plot_front(f, ratio::Rational, cache;
             ymin=0,
             ymax = ymax,
             ymajorgrids,
+            ytick = [0, 40, 80],
             ylabel_style={
                 align = "center",
             },

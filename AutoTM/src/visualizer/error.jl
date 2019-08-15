@@ -33,21 +33,25 @@ function pgf_error_plot(fns, ratios, caches;
     plt = TikzDocument()
     push!(plt, """
     \\pgfplotsset{
-        width=12cm,
-        height=6cm}
+        width=8cm,
+        height=4cm}
     """)
 
     axs = @pgf Axis(
         {
             ybar,
-            bar_width = "3pt",
+            bar_width = "2pt",
             grid = "major",
             xlabel = "DRAM Limit (GB)",
-            ylabel = "Relative Predicted Runtime Error \\%",
+            ylabel = "Relative Predicted\\\\Runtime Error \\%",
+            ylabel_style={
+                align = "center",
+            },
             # Put the legend outside on the right
             legend_style = {
-                at = Coordinate(1.05, 0.5),
-                anchor = "west",
+                at = Coordinate(0.50, 1.20),
+                anchor = "south",
+                legend_columns = 2,
             },
             legend_cell_align = {"left"},
 

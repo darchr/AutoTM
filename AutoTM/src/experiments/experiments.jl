@@ -1,5 +1,7 @@
 module Experiments
 
+using Serialization
+
 using ..Utils
 using ..Profiler
 using ..Optimizer

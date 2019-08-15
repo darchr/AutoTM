@@ -60,6 +60,7 @@ end
 geterr(actual, wanted) = abs(getratio(actual) / getratio(wanted) - 1)
 
 Utils.getratio(x::AbstractOptimizer{Rational{Int64}}) = x.ratio
+Utils.getratio(x::AbstractOptimizer{Int}) = getlimit(x)
 Utils.getratio(x::Number) = x
 
 getlimit(x::AbstractOptimizer{Int64}) = x.ratio

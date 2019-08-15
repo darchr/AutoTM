@@ -52,18 +52,20 @@ function pgf_speedup(f, ratios::Vector{<:Rational}, cache;
     push!(plt, hasymptote())
     symbolic_coords = ratio_string.(ratios)
 
+    dline = pmm_performance / get_dram_performance(data)
+
     axs = @pgf Axis(
         {
             ybar,
             enlarge_x_limits=0.30,
             bar_width = "15pt",
-            width = "10cm",
-            height = "5cm",
+            width = "8cm",
+            height = "4cm",
             legend_style =
             {
                  at = Coordinate(0.05, 1.05),
                  anchor = "south west",
-                 legend_columns = -1
+                 legend_columns = 2
             },
             ymin=0,
             symbolic_x_coords = symbolic_coords,
@@ -73,7 +75,7 @@ function pgf_speedup(f, ratios::Vector{<:Rational}, cache;
                 align = "center",
             },
             xtick="data",
-            ytick = 1:(ceil(Int, pmm_performance / dram_performance)),
+            ytick = 1:(ceil(Int, pmm_performance / dram_performance)+1),
             ymax = ceil(Int, pmm_performance / dram_performance),
             # Lables
             xlabel = "PMM to DRAM Ratio",
@@ -83,7 +85,7 @@ function pgf_speedup(f, ratios::Vector{<:Rational}, cache;
         plots...,
         # Draw a horizontal line at the DRAM performance
         #HLine(pmm_performance / get_dram_performance(data)),
-        hline(pmm_performance / get_dram_performance(data);
+        hline(dline;
               xl = first(symbolic_coords),
               xu = last(symbolic_coords)
              ),
