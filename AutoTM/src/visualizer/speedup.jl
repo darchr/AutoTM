@@ -1,9 +1,61 @@
 # Plot ratios of PMEM to DRAM on the x-axis.
-function pgf_speedup(f, ratios::Vector{<:Rational}, cache;
+function pgf_speedup(fns, ratios::Vector{<:Rational}, cache;
         file = "plot.tex",
         formulations = ("numa", "static", "synchronous")
     )
 
+    doc = TikzDocument()
+    push!(doc, hasymptote())
+
+    count = 1
+    axes = map(fns) do f
+        axs = _speedup(f, ratios, cache, formulations;
+            legend_entries = (count == 1),
+            top = (count == 1),
+            bot = (count == length(fns)),
+            left_label = in(count, (1, 3)),
+            bottom_label = in(count, (3, 4)),
+        )
+        count += 1
+        return axs
+    end
+
+    gp = @pgf GroupPlot(
+        {
+            height = "4cm",
+            width = "6cm",
+            group_style = {
+                group_size = "2 by 2",
+                vertical_sep = "1.5cm",
+            },
+        },
+        axes...
+    )
+
+    pic = TikzPicture(gp)
+
+    # Post processing for legends and stuff
+    push!(pic, raw"\path (top)--(bot) coordinate[midway] (group center);")
+    push!(pic, raw"\node[below=4.5cm] at(group center -| current bounding box.south) {\pgfplotslegendfromname{legend}};")
+
+    push!(doc, pic)
+    pgfsave(file, doc)
+    return nothing
+end
+
+const _speedup_formulation_lut = Dict(
+    "static" => "static-AutoTM",
+    "synchronous" => "sync-AutoTM",
+)
+
+# Inner plot for each `f`
+function _speedup(f, ratios, cache, formulations; 
+        legend_entries = false, 
+        top = false, 
+        bot = false,
+        left_label = false,
+        bottom_label = false,
+    )
     paths = canonical_path.(Ref(f), formulations, Ref(cache), Ref(nGraph.Backend("CPU")))
     data = deserialize.(paths)
 
@@ -40,62 +92,73 @@ function pgf_speedup(f, ratios::Vector{<:Rational}, cache;
         end
 
         # Emit the plot for this series.
-        append!(plots, [
+        push!(plots,
             @pgf(PlotInc(
                 Coordinates(x, y),
-            )),
-            @pgf(LegendEntry("$formulation")),
-        ])
+            ))
+        )
+
+        if legend_entries
+            push!(
+                plots, 
+                @pgf(LegendEntry(get(_speedup_formulation_lut, formulation, formulation)))
+            )
+        end
     end
 
-    plt = TikzDocument()
-    push!(plt, hasymptote())
     symbolic_coords = ratio_string.(ratios)
+    dline = pmm_performance / dram_performance
 
-    dline = pmm_performance / get_dram_performance(data)
+    options = []
+    if legend_entries
+        push!(options, "legend to name = legend")
+    end
+
+    if left_label
+        push!(options, "ylabel = Speedup over all PMM")
+    end
+
+    if bottom_label
+        push!(options, "xlabel = PMM to DRAM Ratio")
+    end
 
     axs = @pgf Axis(
         {
-            ybar,
+            title = titlename(f),
             enlarge_x_limits=0.30,
-            bar_width = "15pt",
-            width = "8cm",
-            height = "4cm",
-            legend_style =
-            {
-                 at = Coordinate(0.05, 1.05),
-                 anchor = "south west",
-                 legend_columns = 2
-            },
+            ybar,
             ymin=0,
             symbolic_x_coords = symbolic_coords,
             nodes_near_coords_align={vertical},
             ymajorgrids,
-            ylabel_style={
-                align = "center",
-            },
             xtick="data",
             ytick = 1:(ceil(Int, pmm_performance / dram_performance)+1),
             ymax = ceil(Int, pmm_performance / dram_performance),
-            # Lables
-            xlabel = "PMM to DRAM Ratio",
-            ylabel = "Speedup over all PMM",
-
+            options...,
+            legend_style = {
+                legend_columns = -1,
+            },
         },
         plots...,
-        # Draw a horizontal line at the DRAM performance
-        #HLine(pmm_performance / get_dram_performance(data)),
+        # Line for All DRAM performance
         hline(dline;
               xl = first(symbolic_coords),
               xu = last(symbolic_coords)
              ),
-        raw"\addlegendimage{line legend, red, sharp plot, ultra thick}",
-        LegendEntry("All DRAM"),
     )
 
-    push!(plt, TikzPicture(axs))
+    if legend_entries 
+        push!(axs, raw"\addlegendimage{line legend, red, densely dashed, ultra thick}")
+        push!(axs, @pgf(LegendEntry("All DRAM")))
+    end
 
-    pgfsave(file, plt)
-    return nothing
+    if top
+        push!(axs, "\\coordinate (top) at (rel axis cs:0,1);")
+    end
+
+    if bot
+        push!(axs, "\\coordinate (bot) at (rel axis cs:1,0);")
+    end
+
+    return axs
 end
-

@@ -36,7 +36,7 @@ hasymptote() = """
 """
 
 hline(y; xl = 0, xu = 1, color = "red") = """
-\\draw[$color, sharp plot, ultra thick] 
+\\draw[$color, densely dashed, ultra thick] L
     ({axis cs:$xl,$y} -| {rel axis cs:0,0}) -- 
     ({axis cs:$xu,$y} -| {rel axis cs:1,0});
 """ |> rm_newlines

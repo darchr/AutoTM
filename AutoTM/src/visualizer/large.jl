@@ -30,13 +30,13 @@ function pgf_large_performance(fns, cache, cache_2lm;
             @pgf(PlotInc(
                 Coordinates(x, y),
             ))
-            @pgf(LegendEntry(formulation))
+            @pgf(LegendEntry(get(_speedup_formulation_lut, formulation, formulation)))
         ])
     end
 
     plt = TikzDocument()
     push!(plt, """
-    \\pgfplotsset{width=7cm,height=4cm}
+    \\pgfplotsset{width=10cm,height=4cm}
     """)
 
     # Bar axis
@@ -44,8 +44,8 @@ function pgf_large_performance(fns, cache, cache_2lm;
     axs = @pgf Axis(
         {
             ybar,
-            bar_width = "20pt",
-            enlarge_x_limits=0.30,
+            bar_width = "18pt",
+            enlarge_x_limits=0.20,
             symbolic_x_coords = coords,
             #nodes_near_coords_align={vertical},
 
@@ -60,9 +60,9 @@ function pgf_large_performance(fns, cache, cache_2lm;
             ylabel_style={
                 align = "center",
             },
-            # xticklabel_style={
-            #     rotate = 15,
-            # },
+            xticklabel_style={
+                rotate = 10,
+            },
             xtick = "data",
 
             # Lables

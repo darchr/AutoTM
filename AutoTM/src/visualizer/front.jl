@@ -124,7 +124,7 @@ function plot_front(f, ratio::Rational, cache;
         comment(
             1,
             comment_level,
-            "System with\\\\160 GB PMM\\\\\\textbf{(cheap)}";
+            "System with\\\\160 GB PMM\\\\\\textbf{(lowest cost)}";
             font = font,
         ),
         comment(
@@ -136,7 +136,7 @@ function plot_front(f, ratio::Rational, cache;
         comment(
             2 + length(formulations),
             comment_level,
-            "System with\\\\160 GB DRAM\\\\\\textbf{(expensive)}";
+            "System with\\\\160 GB DRAM\\\\\\textbf{(highest cost)}";
             font = font,
         )
     )

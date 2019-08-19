@@ -6,6 +6,8 @@ large_densenet() = DenseNet(3072)           # 688 GB
 # Set the DRAM size to use for the networks
 const SIZE_DICT = Dict(
     name(large_inception()) => 185_000_000_000,
+    name(large_resnet())    => 185_000_000_000,
+    name(large_densenet())  => 185_000_000_000,
     name(large_vgg())       => 175_000_000_000,
 )
 
@@ -58,7 +60,7 @@ end
 #####
 
 function plot_large()
-    fns = (large_vgg(), large_inception())
+    fns = (large_vgg(), large_inception(), large_resnet(), large_densenet())
     cache = SINGLE_KERNEL_PATH
     cache_2lm = "nocache"
     formulations = ("static", "synchronous")

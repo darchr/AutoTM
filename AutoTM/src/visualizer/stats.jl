@@ -2,6 +2,9 @@
 ##### The plots
 #####
 
+_wh() = ("8cm", "6cm")
+_ms() = 1.5
+
 function pgf_movement_plot(f, cache, suffix; file = "plot.tex", formulation = "synchronous")
     savefile = canonical_path(f, formulation, cache, nGraph.Backend("CPU"), suffix)
     data = deserialize(savefile)
@@ -13,23 +16,15 @@ function pgf_movement_plot(f, cache, suffix; file = "plot.tex", formulation = "s
     x = dram_sizes
 
     plot = TikzDocument()
-    scheme = "Spectral"
-    plotsets = """
-        \\pgfplotsset{
-            cycle list/$scheme,
-            cycle multiindex* list={
-                mark list*\\nextlist
-                $scheme\\nextlist
-            },
-        }
-    """
-    push!(plot, plotsets)
     push!(plot, vasymptote())
 
     plots = [
         @pgf(PlotInc(
              {
                 thick,
+                mark_options = {
+                    scale = _ms(),
+                },
              },
              Coordinates(x, getname(data.runs, :bytes_moved_pmem) ./ 1E9)
         )),
@@ -37,18 +32,23 @@ function pgf_movement_plot(f, cache, suffix; file = "plot.tex", formulation = "s
         @pgf(PlotInc(
              {
                 thick,
+                mark_options = {
+                    scale = _ms(),
+                },
              },
              Coordinates(x, getname(data.runs, :bytes_moved_dram) ./ 1E9)
         )),
         @pgf(LegendEntry("sync PMEM to DRAM")),
     ]
 
-
+    width, height = _wh()
     axs = @pgf Axis(
         {
             grid = "major",
             xlabel = "DRAM Limit (GB)",
             ylabel = "Memory Moved (GB)",
+            width = width,
+            height = height,
             vasymptote = data.default_alloc_size[] / 1E9,
         },
         plots...,
@@ -83,6 +83,9 @@ function pgf_io_plot(f, cache, suffix; file = "plot.tex", formulations = ("synch
             PlotInc(
                  {
                     thick,
+                    mark_options = {
+                        scale = _ms(),
+                    },
                  },
                  Coordinates(
                     dram_sizes,
@@ -94,6 +97,9 @@ function pgf_io_plot(f, cache, suffix; file = "plot.tex", formulations = ("synch
         push!(plots, @pgf(PlotInc(
                  {
                     thick,
+                    mark_options = {
+                        scale = _ms(),
+                    },
                  },
                  Coordinates(
                     dram_sizes,
@@ -105,24 +111,27 @@ function pgf_io_plot(f, cache, suffix; file = "plot.tex", formulations = ("synch
     end
 
     plot = TikzDocument()
-    scheme = "Spectral"
-    plotsets = """
-        \\pgfplotsset{
-            cycle list/$scheme,
-            cycle multiindex* list={
-                mark list*\\nextlist
-                $scheme\\nextlist
-            },
-        }
-    """
-    push!(plot, plotsets)
+    # scheme = "Spectral"
+    # plotsets = """
+    #     \\pgfplotsset{
+    #         cycle list/$scheme,
+    #         cycle multiindex* list={
+    #             mark list*\\nextlist
+    #             $scheme\\nextlist
+    #         },
+    #     }
+    # """
+    # push!(plot, plotsets)
     push!(plot, vasymptote())
+    width, height = _wh()
 
     axs = @pgf Axis(
         {
             grid = "major",
+            width = width,
+            height = height,
             xlabel = "DRAM Limit (GB)",
-            ylabel = "Percent of Kernel Arguments in DRAM",
+            ylabel = "Percent of Kernel IO in DRAM",
             # put legend on the bottom right
             legend_style = {
                 at = Coordinate(1.0, 0.0),
@@ -169,25 +178,25 @@ function pgf_plot_performance(f, cache, suffix;
         y = getname(datum.runs, :actual_runtime) ./ dram_performance
 
         append!(plots, [
-            @pgf(PlotInc(Coordinates(dram_sizes, y))),
+            @pgf(PlotInc(
+                {
+                   thick,
+                   mark_options = {
+                       scale = _ms(),
+                   },
+                },
+                Coordinates(dram_sizes, y))
+            ),
             @pgf(LegendEntry(formulation))
         ])
     end
 
     plot = TikzDocument()
-    scheme = "Spectral"
-    plotsets = """
-        \\pgfplotsset{
-            cycle list/$scheme,
-            cycle multiindex* list={
-                mark list*\\nextlist
-                $scheme\\nextlist
-            },
-        }
-    """
-    push!(plot, plotsets)
+    width, height = _wh()
     axs = @pgf Axis(
         {
+            width = width,
+            height = height,
             grid = "major",
             xlabel = "DRAM Limit (GB)",
             ylabel = "Performance Relative\\\\to all DRAM",

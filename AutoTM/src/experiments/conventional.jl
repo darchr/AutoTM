@@ -24,7 +24,7 @@ conventional_functions() = [
     conventional_resnet(),
     conventional_vgg(),
     conventional_densenet(),
-    conventional_transformer(),
+    #conventional_transformer(),
 ]
 
 function single_kernel_profile(fns; recache = false)
@@ -55,6 +55,35 @@ function multi_kernel_profile(; recache = false)
         cache = Profiler.CPUKernelCache(MULTIPLE_KERNEL_PATH)
         Profiler.profile(fex; cache = cache, kernel_tiling = TILING_FACTOR[MULTIPLE_KERNEL_PATH])
     end
+end
+
+function describe(ratio; formulation = "numa")
+    fns = conventional_functions()
+    cache = SINGLE_KERNEL_PATH
+    backend = nGraph.Backend("CPU")
+
+    perfs_dram = Float64[]
+
+    for f in fns
+        data = deserialize(canonical_path(f, formulation, cache, backend))
+        dram_performance = Visualizer.get_dram_performance(data)
+
+        runs = data.runs
+        if haskey(first(runs), :ratio)
+            ind = findfirst(x -> x[:ratio] == ratio, runs)
+        else
+            @info "Performing Ratio Search Fallback"
+            ind = Visualizer.findabsmin(x -> compare_ratio(getratio(x), ratio), data.runs)
+        end
+
+        perf_dram = dram_performance / data.runs[ind][:actual_runtime]
+
+        println(Visualizer.titlename(f))
+        println(perf_dram)
+        push!(perfs_dram, perf_dram)
+    end
+
+    println(prod(perfs_dram) ^ (1 / length(perfs_dram)))
 end
 
 #####
@@ -103,7 +132,7 @@ end
 #####
 
 function plot_speedup(
-        model;
+        models = conventional_functions();
         formulations = ("numa", "static", "synchronous"),
         #formulations = ("static", "synchronous"),
         cache = SINGLE_KERNEL_PATH,
@@ -115,7 +144,7 @@ function plot_speedup(
     deleteat!(ratios, findfirst(isequal(1 // 0), ratios))
 
     Visualizer.pgf_speedup(
-        model,
+        models,
         ratios,
         cache;
         formulations = formulations,
