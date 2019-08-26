@@ -1,169 +1,210 @@
-#####
-##### Some rough tools for dealing with kernels that can have multiple implementations
-#####
+### Tools for dealing with multiple algorithms
+struct AlgorithmPerf
+    # The enum value used to select this algorithm.
+    #
+    # This is a detail of cuDNN
+    enum::UInt32
 
-const _ALGO_TUPLE = Vector{NamedTuple{(:enum, :time, :bytes),Tuple{UInt32,Float32,UInt64}}}
-get_enums(a::_ALGO_TUPLE) = map(x -> x.enum, a)
-get_times(a::_ALGO_TUPLE) = map(x -> x.time, a)
+    # The execution time of the algorithm - type match with the return value from the C++
+    # code.
+    time::Float32
 
-function get_time(a::_ALGO_TUPLE, e::Integer)
+    # The number of bytes required for working space
+    bytes::UInt64
+end
+
+enums(a::Vector{AlgorithmPerf}) = map(x -> x.enum, a)
+times(a::Vector{AlgorithmPerf}) = map(x -> x.time, a)
+function time(a::Vector{AlgorithmPerf}, e::Integer)
     ind = something(findfirst(x -> x.enum == e, a))
     return a[ind].time
 end
 
-function get_bytes(a::_ALGO_TUPLE, e::Integer)
+function bytes(a::Vector{AlgorithmPerf}, e::Integer)
     ind = something(findfirst(x -> x.enum == e, a))
     return a[ind].bytes
 end
 
+@deprecate get_enum(x) enums(x) false
+@deprecate get_times(x) times(x) false
+@deprecate get_time(args...) time(args...) false
+@deprecate get_bytes(args...) workspace(args...) false
+
+# Indicate if a value indicates a selection of algorithm implementations
+selectable(x) = false
+selectable(::Vector{AlgorithmPerf}) = true
+
+# We're going to abstract the notion of a Tensor so we can add a bunch of metadata to it
+@enum TensorRole Arg Constant Intermediate
+
+struct XTensor{T}
+    tensor::TensorDescriptor
+    users::Vector{T}
+    role::TensorRole
+    size::Int
+    locations::Vector{TensorLocation}
+end
+
+function XTensor(tensor::TensorDescriptor)
+    # Be default, everything can live in DRAM
+    locations = [DRAM]
+    # Add in tensors that may also live in PMEM
+    xtensor = XTensor(tensor, XNode[], role(tensor), sizeof(tensor), locations)
+
+    if !isconstant(xtensor) && !isarg(xtensor)
+        push!(xtensor.locations, PMEM)
+    end
+    return xtensor
+end
+
+# Infer the role of this tensor from its name
+function role(tensor::TensorDescriptor)
+    tensorname = nGraph.name(tensor)
+    if isparam(tensorname) || isresult(tensorname)
+        role = Arg
+    elseif isconstant(tensorname)
+        role = Constant
+    else
+        role = Intermediate
+    end
+    return role
+end
+
+Utils.isconstant(t::XTensor) = t.role == Constant
+isarg(t::XTensor) = t.role == Arg
+nGraph.is_persistent(t::XTensor) = nGraph.is_persistent(unx(t))
+
+users(t::XTensor) = t.users
+producer(t::XTensor) = first(t.users)
+consumer(t::XTensor) = last(t.users)
+Base.sizeof(t::XTensor) = t.size
+
+unx(t::XTensor) = t.tensor
+locations(t::XTensor) = t.locations
+nGraph.name(t::XTensor) = nGraph.name(t.tensor)
+Base.show(io::IO, x::XTensor) = println(io, "XTensor: ", nGraph.name(x))
+
+#####
+##### XNode
+#####
+
+struct XNode
+    node::NodeDescriptor
+    index::Int
+    timings::Dict{IOConfig, Union{Float64, Vector{AlgorithmPerf}}}
+    outputs::Vector{XTensor}
+    inputs::Vector{XTensor}
+    newlist::Vector{XTensor}
+    freelist::Vector{XTensor}
+end
+
+function XNode(node::NodeDescriptor, index)
+    # Don't determine the inputs or outputs yet.
+    #
+    # Need to make sure all XTensors and XNodes are consistent.
+    # We leave this to the FunctionData constructor.
+    return XNode(
+        node,
+        index,
+        Dict{IOConfig, Union{Float64, Vector{AlgorithmPerf}}}(),
+        XTensor[],
+        XTensor[],
+        XTensor[],
+        XTensor[]
+    )
+end
+
+can_select_algo(n::XNode, c::IOConfig) = isa(n.timings[c], Vector{AlgorithmPerf})
+can_select_algo(n::XNode) = any(c -> can_select_algo(n, c), configs_for(n))
+
+settime!(n::XNode, c::IOConfig, time) = n.timings[c] = time
+configs_for(n::XNode) = keys(n.timings)
+gettime(n::XNode, c::IOConfig) = n.timings[c]
+hastime(n::XNode, c::IOConfig) = haskey(n.timings, c)
+unx(n::XNode) = n.node
+
+Utils.hasprofile(n::XNode) = hasprofile(n.node)
+
+nGraph.outputs(n::XNode) = n.outputs
+nGraph.inputs(n::XNode) = n.inputs
+nGraph.name(n::XNode) = nGraph.name(n.node)
+Base.show(io::IO, n::XNode) = println(io, "XNode: ", nGraph.name(n))
+
 #####
 ##### Profile Data
 #####
-struct ProfileData{T,U}
-    tensors::Vector{TensorDescriptor}
 
-    # Stored in program order.
-    nodes::Vector{NodeDescriptor}
-    node_to_index::Dict{NodeDescriptor, Int}
-    timings::Dict{NodeDescriptor, U}
-
-    # Liveness Analysis
-    newlist::Vector{Vector{TensorDescriptor}}
-    freelist::Vector{Vector{TensorDescriptor}}
-    io_tensors::Set{TensorDescriptor}
-    constant_tensors::Set{TensorDescriptor}
-
-    # Metadata to speed up down-stream algorithms
-    users::Dict{TensorDescriptor, Vector{NodeDescriptor}}
+struct FunctionData{T}
+    tensors::Set{XTensor}
+    nodes::Vector{XNode}
 end
 
-# Some of the behavior of this type depends on the backend it represents.
-#
-# CPU Backends have an additional IOConfiguration that must be kept track of since various
-# inputs and outputs can be in PMEM or DRAM.
-#
-# In the GPU case, data can only be in the GPU DRAM.
-#
-# Unfortunately, the code for the CPU was developed first, so if this feels awkward and
-# hacked in ... that's why.
-_utype(::Type{nGraph.CPU}) = Dict{IOConfig, Float64}
-_utype(::Type{nGraph.GPU}) = Union{Float64, _ALGO_TUPLE}
+nodes(f::FunctionData) = f.nodes
+tensors(f::FunctionData) = f.tensors
 
-can_select_algo(p::ProfileData, node::NodeDescriptor) = _cs(p.timings[node])
-_cs(x) = false
-_cs(::_ALGO_TUPLE) = true
+function FunctionData(fn::nGraph.NFunction, ::Type{T}) where {T}
+    tensors = Set{XTensor{XNode}}()
+    nodes = XNode[]
 
-function settime!(P::ProfileData{nGraph.CPU}, N::NodeDescriptor, config, time) 
-    d = get!(P.timings, N, Dict{IOConfig, Float64}())
-    d[config] = time
-end
-settime!(P::ProfileData{nGraph.GPU}, N::NodeDescriptor, time) = (P.timings[N] = time)
+    for (index, unwrapped_op) in enumerate(fn)
+        op = NodeDescriptor(unwrapped_op)
+        xnode = XNode(op, index)
+        push!(nodes, xnode)
 
-configs_for(P::ProfileData{nGraph.CPU}, N::NodeDescriptor) = collect(keys(P.timings[N]))
-# Only one config that we care about - generate the IOCOnfig lazily
-configs_for(P::ProfileData{nGraph.GPU}, N::NodeDescriptor) = (IOConfig(
-    ntuple(x -> DRAM, nGraph.get_input_size(N)),
-    ntuple(x -> DRAM, nGraph.get_output_size(N))
-),)
+        for tensor in outputs(op)
+            # Create an XTensor from this output.
+            xtensor = XTensor(tensor)
+            push!(tensors, xtensor)
 
-gettime(P::ProfileData{nGraph.CPU}, N::NodeDescriptor, config) = P.timings[N][config]
-gettime(P::ProfileData{nGraph.GPU}, N::NodeDescriptor, config = nothing) = P.timings[N]
-function gettime(
-    P::ProfileData{nGraph.GPU}, 
-    N::NodeDescriptor, 
-    config, #= Not used =#
-    enum)
+            # Register the producing node as the first user
+            push!(xtensor.users, xnode)
 
-    return get_time(gettime(P, N), enum)
-end
-
-hastime(P::ProfileData{nGraph.CPU}, N::NodeDescriptor, config) =
-    haskey(P.timings, N) && haskey(P.timings, config)
-hastime(P::ProfileData{nGraph.GPU}, N::NodeDescriptor) = haskey(P.timings, N)
-
-# Move away from the backend-specific methods
-nodes(P::ProfileData) = P.nodes
-nodes(P::ProfileData, inds...) = getindex(P.nodes, inds...)
-
-tensors(P::ProfileData) = P.tensors
-
-_producer(tensor::TensorDescriptor, P::ProfileData) = first(P.users[tensor])
-_consumer(tensor::TensorDescriptor, P::ProfileData) = last(P.users[tensor])
-_users(tensor::TensorDescriptor, P::ProfileData) = P.users[tensor]
-
-ProfileData(fex::nGraph.FluxExecutable{T}) where {T} = ProfileData(fex.ex.ngraph_function, T)
-function ProfileData(fn::nGraph.NFunction, ::Type{T}) where {T}
-    # Construct the tensors and nodes fields
-    tensors = TensorDescriptor[]
-    nodes = NodeDescriptor[]
-    users = Dict{TensorDescriptor, Vector{NodeDescriptor}}()
-    for op in fn
-        wrapped = NodeDescriptor(op)
-        push!(nodes, wrapped)
-        # Record the tensors. Also record the users at this time for convenience
-        for tensor in outputs(wrapped)
-            push!(tensors, tensor)
-            users[tensor] = [wrapped]
+            # Register the xtensor as an output of the xnode
+            push!(xnode.outputs, xtensor)
         end
 
-        for tensor in inputs(wrapped)
-            if !in(wrapped, users[tensor])
-                push!(users[tensor], wrapped)
-            end
+        # Do the same thing for the node inputs
+        for tensor in inputs(op)
+            # Get the xtensor we made previously from the set of all xtensors
+            xtensor = _get(tensors, tensor)
+
+            # Register users and inputs
+            push!(xtensor.users, xnode)
+            push!(xnode.inputs, xtensor)
         end
     end
 
-    # Perform the liveness analysis on the nodes and tensors data structures
-    parameters = Iterators.flatten(outputs.(NodeDescriptor.(nGraph.get_parameters(fn))))
-    results = Iterators.flatten(outputs.(NodeDescriptor.(nGraph.get_results(fn))))
+    # Run liveness analysis on the set of nodes.
+    liveness!(nodes)
 
-    io_tensors = Set(Iterators.flatten((parameters, results)))
-    constant_tensors = Set{TensorDescriptor}()
-    for node in nodes
-        if isconstant(node)
-            for tensor in outputs(node)
-                push!(constant_tensors, tensor)
-            end
-        end
+    return FunctionData{T}(tensors, nodes)
+end
+
+function _get(a::Set{XTensor{XNode}}, t::TensorDescriptor)
+    for i in a
+        i.tensor == t && return i
     end
-
-    liveness = liveness_analysis(nodes, io_tensors, constant_tensors)
-    PD = ProfileData{T,_utype(T)}(
-        tensors,
-        nodes,
-        Dict(n => i for (i,n) in enumerate(nodes)),
-        Dict{NodeDescriptor, _utype(T)}(),
-        liveness.new_list,
-        liveness.free_list,
-        io_tensors,
-        constant_tensors,
-        users
-    )
-    return PD
+    throw(KeyError(t))
 end
 
 #####
 ##### Liveness Analysis
 #####
 
-_can_free(tensor::TensorDescriptor, freed, io, constants) =
-    !any(x -> in(tensor, x), (freed, io, constants))
-
-function liveness_analysis(nodes::Vector{NodeDescriptor}, io, constants)
-    new_list = [TensorDescriptor[] for _ in nodes]
-    free_list = [TensorDescriptor[] for _ in nodes]
-
-    # Forward Pass
-    for (index, op) in enumerate(nodes)
-        new_list[index] = filter(x -> !in(x, io) && !in(x, constants), outputs(op))
+function liveness!(nodes::Vector{XNode})
+    # forward pass
+    for op in nodes
+        empty!(op.newlist)
+        append!(op.newlist, filter(x -> !isarg(x) && !isconstant(x), outputs(op)))
     end
 
-    # Backward Pass
-    freed_tensors = Set{TensorDescriptor}()
-    for (index, op) in enumerate(reverse(nodes))
+    # backward pass
+    freed_tensors = Set{XTensor{XNode}}()
+    for op in reverse(nodes)
+        empty!(op.freelist)
         for tensor in inputs(op)
-            if _can_free(tensor, freed_tensors, io, constants)
-                push!(free_list[end + 1 - index], tensor)
+            if !in(tensor, freed_tensors) && !isarg(tensor) && !isconstant(tensor)
+                push!(op.freelist, tensor)
                 push!(freed_tensors, tensor)
             end
         end
@@ -176,43 +217,43 @@ function liveness_analysis(nodes::Vector{NodeDescriptor}, io, constants)
     # If so, we sets its free point to the place where it was created.
     #
     # I hate batchnorm
-    tensor_start = Dict{TensorDescriptor,Int}()
-    for (index, list) in enumerate(new_list), tensor in list
+    tensor_start = Dict{XTensor, Int}()
+    for (index, op) in enumerate(nodes), tensor in op.newlist
         tensor_start[tensor] = index
     end
 
-    for list in free_list, tensor in list
+    for op in nodes, tensor in op.freelist
         @assert haskey(tensor_start, tensor)
         delete!(tensor_start, tensor)
     end
 
     for (tensor, index) in tensor_start
-        push!(free_list[index], tensor)
+        push!(nodes[index].freelist, tensor)
     end
 
-    return (new_list = new_list, free_list = free_list)
+    return nothing
 end
 
 # Convenience for iterating over live tensors
 struct LiveTensorIterator
-    data::ProfileData
-    live_tensors::Set{TensorDescriptor}
+    data::FunctionData
+    live_tensors::Set{XTensor{XNode}}
 end
 
-live_tensors(data::ProfileData) = LiveTensorIterator(data, Set{TensorDescriptor}())
-Base.length(L::LiveTensorIterator) = length(L.data.newlist)
+live_tensors(data::FunctionData) = LiveTensorIterator(data, Set{XTensor{XNode}}())
+Base.length(L::LiveTensorIterator) = length(L.data.nodes)
 function Base.iterate(L::LiveTensorIterator, s = 1)
     s > length(L) && return nothing
 
     # Free tensors from the previous iteration
     if !isone(s)
-        for tensor in L.data.freelist[s-1]
+        for tensor in L.data.nodes[s-1].freelist
             delete!(L.live_tensors, tensor)
         end
     end
 
     # Add new tensors for this iteration
-    for tensor in L.data.newlist[s]
+    for tensor in L.data.nodes[s].newlist
         push!(L.live_tensors, tensor)
     end
 
@@ -221,7 +262,7 @@ end
 
 
 """
-    allocation_bounds(data::ProfileData)
+    allocation_bounds(data::FunctionData)
 
 Return upper and lower bounds on the amount of DRAM required for input, output,
 constant, and intermediate tensors.
@@ -230,9 +271,8 @@ Upper bound is determined by the maximum tensors concurrently live.
 
 Lower bound is determined by the total size of input, output, and constant tensors.
 """
-function allocation_bounds(data::ProfileData)
-    # Lower bound should always be zero since we're ignoring fixed tensors
-    lower_bound = sum(sizeof.(data.constant_tensors))
+function allocation_bounds(data::FunctionData)
+    lower_bound = 0
 
     # Compute Upper Bound
     upper_bound = 0
@@ -249,22 +289,13 @@ end
 ##### Valid locations that a tensor can live
 #####
 
-function locations(data::ProfileData, tensor::TensorDescriptor)
-    producer = _producer(tensor, data)
-    if isconstant(producer) || isparam(producer) || isresult(producer)
-        return [DRAM]
-    else
-        return [DRAM, PMEM]
-    end
-end
-
-function get_configs(data::ProfileData)
-    configs = Set{Tuple{NodeDescriptor, IOConfig}}()
+function possible_configs(data::FunctionData{T}) where {T}
+    configs = Set{Tuple{XNode, IOConfig}}()
     for node in nodes(data)
         hasprofile(node) || continue
 
-        config_inputs = [locations(data, t) for t in inputs(node)]
-        config_outputs = [locations(data, t) for t in outputs(node)]
+        # Get possible configs based on backend type
+        config_inputs, config_outputs = _configsfor(node, T)
 
         for input_config in Iterators.product(config_inputs...)
             for output_config in Iterators.product(config_outputs...)
@@ -275,6 +306,12 @@ function get_configs(data::ProfileData)
     end
     return configs
 end
+
+_configsfor(node, ::Type{nGraph.CPU}) = 
+    [locations(t) for t in inputs(node)], [locations(t) for t in outputs(node)]
+
+_configsfor(node, ::Type{nGraph.GPU}) = 
+    [DRAM for _ in inputs(node)], [DRAM for _ in outputs(node)]
 
 function getconfig(n::nGraph.Node)
     f = x -> nGraph.is_persistent(x) ? PMEM : DRAM

@@ -189,7 +189,7 @@ end
 ##### Compare the running times of a function with the predicted runtime.
 #####
 
-function compare_kernel_times(fex::nGraph.FluxExecutable, data::ProfileData)
+function compare_kernel_times(fex::nGraph.FluxExecutable, data::FunctionData)
     kernel_times = read_timing_data(fex.ex.ngraph_function)
     results = []
 

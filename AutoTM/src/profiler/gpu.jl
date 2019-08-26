@@ -30,7 +30,7 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.GPU};
 
     isnothing(cache) && error("Need to define a cache")
 
-    data = ProfileData(f, nGraph.GPU)
+    data = FunctionData(f, nGraph.GPU)
 
     # Clean up cached configs if passed the `recache` option
     if recache
@@ -86,7 +86,7 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.GPU};
                 # Convert to microseconds here to make it uniform with the rest of 
                 # the timings.
                 algo_list = [
-                    (enum = e, time = 1000 * t, bytes = b) for (e,t,b) in zip(enums, times, bytes)
+                    AlgorithmPerf(e, 1000 * t, b) for (e,t,b) in zip(enums, times, bytes)
                 ]
 
                 !allow_alloc_fail && alloc_failed && throw(error("""
@@ -134,7 +134,7 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.GPU};
     return data
 end
 
-function record_time!(data::ProfileData{nGraph.GPU}, node, ex::nGraph.Executable, copied_op)
+function record_time!(data::FunctionData{nGraph.GPU}, node, ex::nGraph.Executable, copied_op)
     timing_dict = nGraph.get_performance(ex)
 
     # Find the performance for the copied op in the timing dictionary

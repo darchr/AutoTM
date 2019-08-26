@@ -1,5 +1,5 @@
 # Overload for a Frame
-function configure!(f, frame::Frame)
+function configure!(f::nGraph.NFunction, frame::Frame)
     # Get initial schedules for the frame
     initial_schedule = get_schedule(frame)
 
@@ -12,7 +12,7 @@ function configure!(f, frame::Frame)
     # TODO: Move this into the innermost `configure!`
     data = frame.profile_data
     for node in nodes(data)
-        if nGraph.Lib.can_select_algo(nGraph.getpointer(node))
+        if nGraph.Lib.can_select_algo(nGraph.getpointer(unx(node)))
             # Only access this once we know that there is at least one node where the
             # algorithm can be decided.
             #
@@ -38,7 +38,7 @@ function configure!(f, frame::Frame)
     end
 
     @info "Calling Inner Configure"
-    return configure!(f, frame.profile_data, schedule)
+    return configure!(f, schedule)
 end
 
 # Get the path of the tensor traced through the graph
@@ -46,7 +46,7 @@ function get_schedule(F::Frame)
     data = F.profile_data
     model_graphs = F.model[:tensor_graphs]
 
-    schedule = Dict{TensorDescriptor, Tuple{MetaGraph, Vector{VertexMetadata}}}()
+    schedule = Dict{XTensor{XNode}, Tuple{MetaGraph, Vector{VertexMetadata}}}()
 
     for tensor in tensors(data)
         g = graph(descriptor(F, tensor))
@@ -85,7 +85,7 @@ end
 
 # Consume all of the PKEEP nodes.
 function getkeeps(vertices::Vector{VertexMetadata}, index)
-    keeps = NodeDescriptor[]
+    keeps = XNode[]
     while checkbounds(Bool, vertices, index) && isdram(vertices[index].location)
         vertex = vertices[index]
         if vertex.isuser

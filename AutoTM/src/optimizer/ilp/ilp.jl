@@ -2,7 +2,7 @@
 mutable struct Frame{T}
     modeltype::T
     model::JuMP.Model
-    profile_data::ProfileData
+    profile_data::FunctionData
 end
 
 limit(F::Frame) = limit(F.modeltype)

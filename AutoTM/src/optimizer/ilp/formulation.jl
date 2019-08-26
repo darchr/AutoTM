@@ -12,15 +12,15 @@ struct TensorMeta
     graph::MetaGraph
 
     # Nodes using this tensor
-    users::Vector{NodeDescriptor}
+    users::Vector{XNode}
 
     # Look-up a node wrapper, get the node that serves as a reference for this
-    reference_map::Dict{NodeDescriptor, NodeDescriptor}
+    reference_map::Dict{XNode, XNode}
 end
 
-get_reference(S::TensorMeta, node::NodeDescriptor) = S.reference_map[node]
+get_reference(S::TensorMeta, node::XNode) = S.reference_map[node]
 graph(S::TensorMeta) = S.graph
-users(S::TensorMeta) = S.users
+Profiler.users(S::TensorMeta) = S.users
 
 #####
 ##### Model Types
@@ -34,9 +34,9 @@ struct IsAsynchronous <: ILPFormulationType end
 
 mutable struct ILPHolder{T <: ILPFormulationType}
     dram_limits::Vector{Int}
-    descriptors::Dict{TensorDescriptor, TensorMeta}
-    async_move_vars::Dict{NodeDescriptor, Vector{JuMP.VariableRef}}
-    node_to_limit_index::Dict{NodeDescriptor, Int}
+    descriptors::Dict{XTensor{XNode}, TensorMeta}
+    async_move_vars::Dict{XNode, Vector{JuMP.VariableRef}}
+    node_to_limit_index::Dict{XNode, Int}
 
     # Bandwidths
     read_bandwidth::Int64
@@ -62,21 +62,21 @@ exceeds_limit(f::nGraph.NFunction, I::ILPHolder) =
 #
 # This should cause the ngraph allocator to free up some space so we don't go over the
 # limit.
-function update(I::T, data::ProfileData) where {T <: ILPHolder}
+function update(I::T, data::FunctionData) where {T <: ILPHolder}
     dram_limits = I.dram_limits
     ml = maxlimit(I)
 
     # Go through all of the live tensors - find the first that exceeds the limit
-    offending_tensors = TensorDescriptor[]
+    offending_tensors = XTensor{XNode}[]
     worst = 0
     for live in live_tensors(data)
         # Find the DRAM tensors
-        dram_tensors = filter(!nGraph.is_persistent, live)
+        dram_tensors = filter(!is_persistent, live)
         isempty(dram_tensors) && continue
 
         # Find all out of bounds tensors
         for tensor in dram_tensors
-            sz = (nGraph.get_pool_offset(tensor) + sizeof(tensor)) / 1E6
+            sz = (nGraph.get_pool_offset(unx(tensor)) + sizeof(tensor)) / 1E6
             if sz > ml
                 push!(offending_tensors, tensor)
                 worst = max(worst, sz)
@@ -94,8 +94,8 @@ function update(I::T, data::ProfileData) where {T <: ILPHolder}
     # Keep track of the indices that need their limits lowered
     indices = Int[]
     for tensor in offending_tensors
-        for node in _users(tensor, data)
-            (ismove(node) || !hasprofile(node)) && continue
+        for node in users(tensor)
+            (ismove(unx(node)) || !hasprofile(node)) && continue
             push!(indices, I.node_to_limit_index[node])
         end
     end
@@ -116,9 +116,9 @@ function update(I::T, data::ProfileData) where {T <: ILPHolder}
 
     # Return a new ILHolder
     return T(dram_limits,
-        Dict{TensorDescriptor, TensorMeta}(),
-        Dict{NodeDescriptor, Vector{JuMP.VariableRef}}(),
-        Dict{NodeDescriptor, Int}(),
+        Dict{XTensor{XNode}, TensorMeta}(),
+        Dict{XNode, Vector{JuMP.VariableRef}}(),
+        Dict{XNode, Int}(),
         rb(I),
         wb(I),
         rba(I),
@@ -135,27 +135,27 @@ wba(I::ILPHolder) = I.write_bandwidth_async
 
 static(dram_limits; defrag = false) = ILPHolder{IsFixed}(
     dram_limits,
-    Dict{TensorDescriptor, TensorMeta}(),
-    Dict{NodeDescriptor, Vector{JuMP.VariableRef}}(),
-    Dict{NodeDescriptor, Int}(),
+    Dict{XTensor{XNode}, TensorMeta}(),
+    Dict{XNode, Vector{JuMP.VariableRef}}(),
+    Dict{XNode, Int}(),
     1,1,1,1,
     defrag,
 )
 
 synchronous(dram_limits, a, b; defrag = false) = ILPHolder{IsSynchronous}(
     dram_limits,
-    Dict{TensorDescriptor, TensorMeta}(),
-    Dict{NodeDescriptor, Vector{JuMP.VariableRef}}(),
-    Dict{NodeDescriptor, Int}(),
+    Dict{XTensor{XNode}, TensorMeta}(),
+    Dict{XNode, Vector{JuMP.VariableRef}}(),
+    Dict{XNode, Int}(),
     a,b,1,1,
     defrag,
 )
 
 asynchronous(dram_limits,a,b,c,d; defrag = false) = ILPHolder{IsAsynchronous}(
     dram_limits,
-    Dict{TensorDescriptor, TensorMeta}(),
-    Dict{NodeDescriptor, Vector{JuMP.VariableRef}}(),
-    Dict{NodeDescriptor, Int}(),
+    Dict{XTensor{XNode}, TensorMeta}(),
+    Dict{XNode, Vector{JuMP.VariableRef}}(),
+    Dict{XNode, Int}(),
     a,b,c,d,
     defrag,
 )
@@ -169,7 +169,7 @@ limit(S::ILPHolder, i) = i > length(S.dram_limits) ? maxlimit(S) : S.dram_limits
 maxlimit(S::ILPHolder) = maximum(S.dram_limits)
 
 predict(F::Frame) = objective_value(F.model)
-descriptor(F::Frame, tensor::TensorDescriptor) = F.modeltype.descriptors[tensor]
+descriptor(F::Frame, tensor::XTensor) = F.modeltype.descriptors[tensor]
 
 #####
 ##### Entry Point
@@ -178,7 +178,7 @@ descriptor(F::Frame, tensor::TensorDescriptor) = F.modeltype.descriptors[tensor]
 # For procedurally building JuMP expressions for the ILP model
 const _expr_type = typeof(AffExpr())
 
-function create_model(modeltype::ILPHolder, profile_data::ProfileData)
+function create_model(modeltype::ILPHolder, profile_data::FunctionData)
     preprocess!(modeltype, profile_data)
 
     # Start with an empty model that we will progressively build.
@@ -242,7 +242,7 @@ struct VertexMetadata
     # The gadget that this vertex belongs to. Used for edge generation.
     gadget::Int
     # The op index that this gadget refers to
-    op::NodeDescriptor
+    op::XNode
     # Where the vertex lives
     location::VertexLocation
     # What type of moves this vertex allows
@@ -261,22 +261,21 @@ isasync(em::EdgeMetadata) = isasync(em.edgetype)
 #####
 
 # Preprocessing basically involves creating the tensor graphs for each intermediate tensor.
-function _liverange(data::ProfileData, t::TensorDescriptor)
-    start = findfirst(isequal(_producer(t, data)), nodes(data))::Int
-    stop = findlast(isequal(_consumer(t, data)), nodes(data))
+function _liverange(data::FunctionData, t::XTensor)
+    start = findfirst(isequal(producer(t)), nodes(data))::Int
+    stop = findlast(isequal(consumer(t)), nodes(data))
     isnothing(stop) && (stop = length(nodes))
     return start:stop
 end
 
-function _getgadgets(A::ILPHolder{IsAsynchronous}, data::ProfileData, t::TensorDescriptor)
+function _getgadgets(A::ILPHolder{IsAsynchronous}, data::FunctionData, t::XTensor)
     liverange = _liverange(data, t)
     livenodes = (nodes(data, x) for x in liverange)
-    users = _users(t, data)
-    refs = Vector{NamedTuple{(:node, :move_type),Tuple{NodeDescriptor,MoveType}}}()
+    refs = Vector{NamedTuple{(:node, :move_type),Tuple{XNode,MoveType}}}()
 
     # Build the referece map
-    reference_map = Dict{NodeDescriptor, NodeDescriptor}()
-    ref = first(users)
+    reference_map = Dict{XNode, XNode}()
+    ref = producer(t)
 
     # To decide if a node should be considered as an aynchronous move point, we check to see
     # if the node is with `bound` distance of a user of the tensor.
@@ -290,14 +289,14 @@ function _getgadgets(A::ILPHolder{IsAsynchronous}, data::ProfileData, t::TensorD
     move_time = sizeof(t) / A.write_bandwidth
     for ind in liverange
         node = nodes(data, ind)
-        if in(node, users)
+        if in(node, users(t))
             push!(refs, (node = node, move_type = MOVE_SYNC))
             ref = node
 
         # Check if there is a user node within `bound`. If so, make this an async move node.
         elseif hasprofile(node) && !Utils.is_memory_intensive(node) &&
             any(
-                in(users),
+                in(users(t)),
                 (nodes(data, i) for i in max(ind-bound, 1):min(ind+bound, length(nodes(data))))
             )
 
@@ -310,36 +309,35 @@ function _getgadgets(A::ILPHolder{IsAsynchronous}, data::ProfileData, t::TensorD
     return refs, reference_map
 end
 
-function _getgadgets(::ILPHolder{IsSynchronous}, data::ProfileData, t::TensorDescriptor)
+function _getgadgets(::ILPHolder{IsSynchronous}, data::FunctionData, t::XTensor)
     liverange = _liverange(data, t)
     livenodes = (nodes(data, x) for x in liverange)
-    users = _users(t, data)
 
     # Build the referece map
-    reference_map = Dict{NodeDescriptor, NodeDescriptor}()
-    ref = first(users)
+    reference_map = Dict{XNode, XNode}()
+    ref = producer(t)
     for ind in liverange
-        node = nodes(data, ind)
-        if in(node, users)
+        node = nodes(data)[ind]
+        if in(node, users(t))
             ref = node
         end
         reference_map[node] = ref
     end
 
     nt = [
-        (node = u, move_type = isone(i) ? MOVE_NONE : MOVE_SYNC) for (i,u) in enumerate(users)
+        (node = u, move_type = isone(i) ? MOVE_NONE : MOVE_SYNC) for (i,u) in enumerate(users(t))
     ]
 
     return nt, reference_map
 end
 
-function _getgadgets(::ILPHolder{IsFixed}, data::ProfileData, t::TensorDescriptor)
+function _getgadgets(::ILPHolder{IsFixed}, data::FunctionData, t::XTensor)
     liverange = _liverange(data, t)
-    producer = nodes(data, first(liverange))
+    producer = nodes(data)[first(liverange)]
 
-    reference_map = Dict{NodeDescriptor, NodeDescriptor}()
+    reference_map = Dict{XNode, XNode}()
     for ind in liverange
-        reference_map[nodes(data, ind)] = producer
+        reference_map[nodes(data)[ind]] = producer
     end
 
     return [(node = producer, move_type = MOVE_NONE)], reference_map
@@ -356,12 +354,17 @@ function edge_metadata(src, dst, s, d, src_move_type)
     end
 
     # Determine if an edge should be added and what kind of edge it is.
+
+    ### LOC_SOURCE node is source
     if (src, dst) == (LOC_SOURCE, LOC_DRAM_PRE)
         isone(d) && return EdgeMetadata(EDGE_NONE)
     elseif (src, dst) == (LOC_SOURCE, LOC_PMEM)
         isone(d) && return EdgeMetadata(EDGE_NONE)
 
-    # LOC_DRAM as source
+    ### LOC_DRAM as source
+
+    # If we're in LOC_DRAM, data already exists in PMEM. Thus all edges originating in
+    # LOC_DRAM have no metadata. I.E., no read or write type eges.
     elseif (src, dst) == (LOC_DRAM, LOC_DRAM)
         s == d-1 && return EdgeMetadata(EDGE_NONE)
     elseif (src, dst) == (LOC_DRAM, LOC_PMEM)
@@ -369,32 +372,40 @@ function edge_metadata(src, dst, s, d, src_move_type)
     elseif (src, dst) == (LOC_DRAM, LOC_SINK)
         s == d-1 && return EdgeMetadata(EDGE_NONE)
 
-    # LOC_DRAM_PRE as source
+    ### LOC_DRAM_PRE as source
+
+    # Moving from LOC_DRAM_PRE to LOC_PMEM indicates a movement of data from DRAM to PMEM
+    # where the data did not exist in PMEM before. Thus, we must record a write.
     elseif (src, dst) == (LOC_DRAM_PRE, LOC_PMEM)
         s == d-1 && return EdgeMetadata(edge_write_type)
+    # Movement between DRAM or to the SINK requires no metadata
     elseif (src, dst) == (LOC_DRAM_PRE, LOC_DRAM_PRE)
         s == d-1 && return EdgeMetadata(EDGE_NONE)
     elseif (src, dst) == (LOC_DRAM_PRE, LOC_SINK)
         s == d-1 && return EdgeMetadata(EDGE_NONE)
 
-    # LOC_PMEM as source
+    ### LOC_PMEM as source
+    
+    # Movement edges from PMEM to DRAM. Must not happen on the first `component` because
+    # prefetching from PMEM to DRAM at the time of creation makes no sense.
     elseif (src, dst) == (LOC_PMEM, LOC_DRAM)
         (s == d) && !isone(s) && return EdgeMetadata(edge_read_type)
     elseif (src, dst) == (LOC_PMEM, LOC_PMEM)
         (s == d-1) && return EdgeMetadata(EDGE_NONE)
+    # Otherwise, no metadata needed
     elseif (src, dst) == (LOC_PMEM, LOC_SINK)
         (s == d-1) && return EdgeMetadata(EDGE_NONE)
     end
     return nothing
 end
 
-function preprocess!(S::ILPHolder, data::ProfileData)
-    @showprogress 1 "Making Tensor Graphs " for tensor in tensors(data)
+function preprocess!(S::ILPHolder, data::FunctionData)
+     for tensor in tensors(data)
 
         # Get the users of this node
         # Get two things from _getgadgets:
         #
-        # 1. A named tuple (node::NodeDescriptor, move_type::MoveType)
+        # 1. A named tuple (node::XNode, move_type::MoveType)
         # 2. A dictionary implementing the `ref` function.
         gadgets, reference_map = _getgadgets(S, data, tensor)
 
@@ -404,7 +415,6 @@ function preprocess!(S::ILPHolder, data::ProfileData)
         g = MetaGraph(DiGraph(), EdgeMetadata, VertexMetadata)
 
         # Get the users so we can annotate if a gadget node is a user
-        users = _users(tensor, data)
 
         # Add nodes for each region
         for (count, nt) in enumerate(gadgets)
@@ -413,7 +423,7 @@ function preprocess!(S::ILPHolder, data::ProfileData)
             move_type = nt.move_type
             islast = (count == length(gadgets))
 
-            isuser = in(node, users)
+            isuser = in(node, users(tensor))
 
             if count == 1
                 add_vertex!(g, VertexMetadata(0, node, LOC_SOURCE, move_type, isuser, nv(g)+1))
@@ -422,7 +432,7 @@ function preprocess!(S::ILPHolder, data::ProfileData)
             #
             # Do it this way because some nodes can only live in DRAM, so iterating
             # then filtering takes care of that
-            for location in locations(data, tensor)
+            for location in locations(tensor)
                 if location == DRAM
                     # Add DRAM nodes
                     add_vertex!(g,
@@ -631,9 +641,9 @@ function add_movement_formulations!(frame::Frame)
     @variable(frame.model, tensor_write[tensor = tensors(data)], Bin)
 
     # Add objective terms for all read ops
-    @showprogress 1 "Adding Movement Formulations " for tensor in tensors(data)
+    for tensor in tensors(data)
         # Skip if this tensor can never be assigned to PMEM
-        in(PMEM, locations(data, tensor)) || continue
+        in(PMEM, locations(tensor)) || continue
 
         # Some unpacking
         g = graph(descriptor(frame, tensor))
@@ -713,7 +723,7 @@ end
 #
 # If we're on an op where a tensor is LIVE but not READ, we need to check the outgoing
 # edge of the correct DRAM -> DRAM node to see if the tensor just lives around in DRAM.
-function get_tensor_in_dram(F::Frame, tensor::TensorDescriptor, node::NodeDescriptor)
+function get_tensor_in_dram(F::Frame, tensor::XTensor, node::XNode)
     desc = descriptor(F, tensor)
     if in(node, users(desc))
         return F.model[:tensor_in_dram][tensor, nGraph.name(node)]
@@ -726,28 +736,29 @@ function add_nodes!(F::Frame)
     data = F.profile_data
 
     # Create decision variables for all nodes that have a choice of backend algorithm.
-    select_nodes = filter(x -> hasprofile(x) && can_select_algo(data, x), nodes(data))
-    if !isempty(select_nodes)
-        @info "Creating Algorithms Variables"
-        @variable(
-            F.model,
-            algo_var[
-                node = select_nodes,
-                enum = get_enums(gettime(data, node))
-            ],
-            Bin
-        )
+    # TODO: reimplement
+    # select_nodes = filter(x -> hasprofile(x) && can_select_algo(x), nodes(data))
+    # if !isempty(select_nodes)
+    #     @info "Creating Algorithms Variables"
+    #     @variable(
+    #         F.model,
+    #         algo_var[
+    #             node = select_nodes,
+    #             enum = get_enums(gettime(data, node))
+    #         ],
+    #         Bin
+    #     )
 
-        # Constrain so only one algorithm may be selected.
-        for node in select_nodes
-            @constraint(
-                F.model,
-                sum(algo_var[node, e] for e in get_enums(gettime(data, node))) == 1
-            )
-        end
-    end
+    #     # Constrain so only one algorithm may be selected.
+    #     for node in select_nodes
+    #         @constraint(
+    #             F.model,
+    #             sum(algo_var[node, e] for e in get_enums(gettime(data, node))) == 1
+    #         )
+    #     end
+    # end
 
-    @showprogress 1 "Adding Nodes " for node in nodes(data)
+    for node in nodes(data)
         # We don't profile all ops, so perform a quick check to see if this is an op
         # the we have profile information for. If not, there's nothing to do as far as the
         # ILP model is concerned.
@@ -758,7 +769,7 @@ function add_nodes!(F::Frame)
         # reside in GPU DRAM.
         #
         # The CPU path will yield a bunch of DRAM/PMEM combinations
-        configs = configs_for(data, node)
+        configs = configs_for(node)
 
         # Create a variable for each config.
         vars = @variable(F.model, [config = configs], Bin)
@@ -802,18 +813,18 @@ function add_nodes!(F::Frame)
             # we only get a single algorithm out at the end.
             #
             # If there are not multiple algorithms, then we don't have to worry about it.
-            if can_select_algo(data, node)
-                v = @variable(F.model, [enum = get_enums(gettime(data, node))], Bin)
-                for enum in get_enums(gettime(data, node))
+            if can_select_algo(node, config)
+                v = @variable(F.model, [enum = enums(gettime(data, config, node))], Bin)
+                for enum in enums(gettime(data, node))
                     @constraint(F.model, v[enum] <= algo_var[node, enum])
                     @constraint(F.model, v[enum] <= vars[config])
                     @constraint(F.model, v[enum] + 1 >= vars[config] + algo_var[node, enum])
 
-                    coeff = ceil(Int64, gettime(data, node, config, enum))
+                    coeff = ceil(Int64, gettime(node, config, enum))
                     add_to_expression!(node_times, coeff, v[enum])
                 end
             else
-                coeff = ceil(Int64, gettime(data, node, config))
+                coeff = ceil(Int64, gettime(node, config))
                 add_to_expression!(node_times, coeff, vars[config])
             end
         end
@@ -827,7 +838,7 @@ end
 #
 # Take the floor to introduce more zeros into the ILP formulation. This shouldn't really
 # make much of a difference.
-tensor_size(t::TensorDescriptor) = tensor_size(sizeof(t))
+tensor_size(t::XTensor) = tensor_size(sizeof(t))
 tensor_size(sz) = ceil(Int, ceil(Int, sz / 4096) * 4096 / 1E6)
 
 function add_constraints!(F::Frame)
@@ -835,19 +846,19 @@ function add_constraints!(F::Frame)
     data = F.profile_data
 
     iter = enumerate(live_tensors(data))
-    @showprogress 1 "Adding DRAM Constraints " for (index, tensors) in iter
-        node = nodes(data, index)
+    for (index, tensors) in iter
+        node = nodes(data)[index]
         hasprofile(node) || continue
         F.modeltype.node_to_limit_index[node] = index
 
         # Add DRAM constraint for the workspace
-        if can_select_algo(data, node)
+        if can_select_algo(node)
             v = F.model[:algo_var]
             algo_expr = @expression(
                 F.model,
                 sum(
-                    tensor_size(get_bytes(gettime(data, node), e)) *
-                    v[node, e] for e in get_enums(gettime(data, node))
+                    tensor_size(get_bytes(gettime(node), e)) *
+                    v[node, e] for e in get_enums(gettime(node))
                 )
             )
         else

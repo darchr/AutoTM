@@ -3,6 +3,7 @@ module Optimizer
 using ..Utils
 using ..Profiler
 import nGraph
+import Match
 
 using ProgressMeter
 using LightGraphs

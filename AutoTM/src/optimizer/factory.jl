@@ -27,7 +27,7 @@ function _factory(
     Profiler.enable_passes()
     f, args, kw = func()
 
-    # add a callback that will populate a reference to a `ProfileData` type
+    # add a callback that will populate a reference to a `FunctionData` type
     frame_ref = Ref{Frame}()
     limits_ref = Ref{Vector{Int}}()
     creation_times = Float64[]

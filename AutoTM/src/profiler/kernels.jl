@@ -50,15 +50,15 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.CPU};
     # Create new parameters with the same input and outputs sizes
     # Call `copy_with_new_args` on the node in question with the new parameters
     # Swip the input and output tensor layouts from the node in question
-    data = ProfileData(f, nGraph.CPU)
+    data = FunctionData(f, nGraph.CPU)
 
     # Get all the configurations we are interested in for this run.
     # Need to make a MOVE node in order to control IO configurations.
-    all_configs = get_configs(data)
+    all_configs = possible_configs(data)
 
     # Convert the configs to a dictionary mapping node name to configs for easier
     # management
-    config_dict = Dict{NodeDescriptor, Vector{IOConfig}}()
+    config_dict = Dict{XNode, Vector{IOConfig}}()
     for config in all_configs
         v = get!(config_dict, first(config), IOConfig[])
         push!(v, last(config))
@@ -70,7 +70,7 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.CPU};
         for node in nodes(data)
             hasprofile(node) || continue
             configs = config_dict[node]
-            kernel_params = CPUKernelParams(node)
+            kernel_params = CPUKernelParams(unx(node))
             for config in configs
                 key = (kernel_params, config)
                 delete!(cache, key)
@@ -112,7 +112,7 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.CPU};
 
         # Before we build a sub-function, get all of the cached ops.
         cached_configs = IOConfig[]
-        kernel_params = CPUKernelParams(node)
+        kernel_params = CPUKernelParams(unx(node))
         for config in configs
             key = (kernel_params, config)
             if haskey(cache, key)
@@ -120,7 +120,7 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.CPU};
                 ncached += 1
                 _update!(progress_bar, node, config, ncached)
 
-                settime!(data, node, config, cache[key])
+                settime!(node, config, cache[key])
                 push!(cached_configs, config)
             end
         end
@@ -180,7 +180,7 @@ read_timing_data(fn::nGraph.NFunction) = read_timing_data(nGraph.name(fn))
 read_timing_data(fn::AbstractString) = JSON.parsefile("$fn.timeline.json")["traceEvents"]
 
 function record_time!(
-        data::ProfileData{nGraph.CPU},
+        data::FunctionData{nGraph.CPU},
         node::NodeDescriptor,
         function_name,
         ops::Vector{<:nGraph.Node},
