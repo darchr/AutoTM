@@ -277,7 +277,7 @@ end
 
 function _getgadgets(A::ILPHolder{IsAsynchronous}, data::FunctionData, t::XTensor)
     liverange = _liverange(data, t)
-    livenodes = (nodes(data, x) for x in liverange)
+    livenodes = (nodes(data)[x] for x in liverange)
     refs = Vector{NamedTuple{(:node, :move_type),Tuple{XNode,MoveType}}}()
 
     # Build the referece map
@@ -295,16 +295,16 @@ function _getgadgets(A::ILPHolder{IsAsynchronous}, data::FunctionData, t::XTenso
     bound = 15
     move_time = sizeof(t) / A.write_bandwidth
     for ind in liverange
-        node = nodes(data, ind)
+        node = nodes(data)[ind]
         if in(node, users(t))
             push!(refs, (node = node, move_type = MOVE_SYNC))
             ref = node
 
         # Check if there is a user node within `bound`. If so, make this an async move node.
-        elseif hasprofile(node) && !Utils.is_memory_intensive(node) &&
+        elseif hasprofile(node) && !Utils.is_memory_intensive(unx(node)) &&
             any(
                 in(users(t)),
-                (nodes(data, i) for i in max(ind-bound, 1):min(ind+bound, length(nodes(data))))
+                (nodes(data)[i] for i in max(ind-bound, 1):min(ind+bound, length(nodes(data))))
             )
 
             push!(refs, (node = node, move_type = MOVE_ASYNC))
@@ -318,7 +318,7 @@ end
 
 function _getgadgets(::ILPHolder{IsSynchronous}, data::FunctionData, t::XTensor)
     liverange = _liverange(data, t)
-    livenodes = (nodes(data, x) for x in liverange)
+    livenodes = (nodes(data)[x] for x in liverange)
 
     # Build the referece map
     reference_map = Dict{XNode, XNode}()
@@ -744,26 +744,26 @@ function add_nodes!(F::Frame)
 
     # Create decision variables for all nodes that have a choice of backend algorithm.
     # TODO: reimplement
-    # select_nodes = filter(x -> hasprofile(x) && can_select_algo(x), nodes(data))
-    # if !isempty(select_nodes)
-    #     @info "Creating Algorithms Variables"
-    #     @variable(
-    #         F.model,
-    #         algo_var[
-    #             node = select_nodes,
-    #             enum = get_enums(gettime(data, node))
-    #         ],
-    #         Bin
-    #     )
+    select_nodes = filter(x -> hasprofile(x) && can_select_algo(x), nodes(data))
+    if !isempty(select_nodes)
+        @info "Creating Algorithms Variables"
+        @variable(
+            F.model,
+            algo_var[
+                node = select_nodes,
+                enum = enums(gettime(node))
+            ],
+            Bin
+        )
 
-    #     # Constrain so only one algorithm may be selected.
-    #     for node in select_nodes
-    #         @constraint(
-    #             F.model,
-    #             sum(algo_var[node, e] for e in get_enums(gettime(data, node))) == 1
-    #         )
-    #     end
-    # end
+        # Constrain so only one algorithm may be selected.
+        for node in select_nodes
+            @constraint(
+                F.model,
+                sum(algo_var[node, e] for e in enums(gettime(node))) == 1
+            )
+        end
+    end
 
     for node in nodes(data)
         # We don't profile all ops, so perform a quick check to see if this is an op
@@ -821,13 +821,13 @@ function add_nodes!(F::Frame)
             #
             # If there are not multiple algorithms, then we don't have to worry about it.
             if can_select_algo(node, config)
-                v = @variable(F.model, [enum = enums(gettime(data, config, node))], Bin)
-                for enum in enums(gettime(data, node))
+                v = @variable(F.model, [enum = enums(gettime(node, config))], Bin)
+                for enum in enums(gettime(node, config))
                     @constraint(F.model, v[enum] <= algo_var[node, enum])
                     @constraint(F.model, v[enum] <= vars[config])
                     @constraint(F.model, v[enum] + 1 >= vars[config] + algo_var[node, enum])
 
-                    coeff = ceil(Int64, gettime(node, config, enum))
+                    coeff = ceil(Int64, Profiler.timeat(gettime(node, config), enum))
                     add_to_expression!(node_times, coeff, v[enum])
                 end
             else
@@ -864,8 +864,8 @@ function add_constraints!(F::Frame)
             algo_expr = @expression(
                 F.model,
                 sum(
-                    tensor_size(get_bytes(gettime(node), e)) *
-                    v[node, e] for e in get_enums(gettime(node))
+                    tensor_size(Profiler.bytesat(gettime(node), e)) *
+                    v[node, e] for e in enums(gettime(node))
                 )
             )
         else

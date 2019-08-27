@@ -173,8 +173,7 @@ end
 
 # Right now, no algorithm selection happens in the CPU case - so just special case this 
 # function to save some CPU cycles
-handle_algo_selection!(cache, backend::nGraph.Backend{nGraph.GPU}, data::FunctionData) = nothing
-
+handle_algo_selection!(cache, backend::nGraph.Backend{nGraph.CPU}, data::FunctionData) = nothing
 function handle_algo_selection!(cache, backend::nGraph.Backend{nGraph.GPU}, data::FunctionData)
     for (index, node) in enumerate(nodes(data))
         hasprofile(node) || continue
@@ -184,8 +183,16 @@ function handle_algo_selection!(cache, backend::nGraph.Backend{nGraph.GPU}, data
 
         # If we can select an algorithm for this node, use the built-in timings
         # and skip the actual profiling.
-        if nGraph.Lib.can_select_algo(nGraph.getpointer(node))
-            if !haskey(cache, kernel_params)
+        if nGraph.Lib.can_select_algo(nGraph.getpointer(unx(node))) 
+            # Hack for the moment - make sure that we only have a single configuration
+            # in the GPU case.
+            #
+            # If we need more flexibility - we'll deal with it in the future
+            configs = possible_configs(node, nGraph.GPU)
+            @assert length(configs) == 1
+            config = first(configs)
+
+            if !haskey(cache, (kernel_params, config))
                 # Cleanup
                 @info "Getting CUDNN timings for $(nGraph.name(node))"
 
@@ -194,7 +201,7 @@ function handle_algo_selection!(cache, backend::nGraph.Backend{nGraph.GPU}, data
                 bytes = UInt64[]
                 GC.gc()
                 alloc_failed = nGraph.Lib.get_algo_options(
-                    nGraph.getpointer(node),
+                    nGraph.getpointer(unx(node)),
                     enums,
                     times,
                     bytes
@@ -222,7 +229,7 @@ function handle_algo_selection!(cache, backend::nGraph.Backend{nGraph.GPU}, data
                 #     Restart the process and try again.
                 #     """))
 
-                cache[kernel_params] = algo_list
+                cache[(kernel_params, config)] = algo_list
                 save(cache)
             end
         end
@@ -365,7 +372,7 @@ function extract(
         # pipeline, it may be time to revisit this.
         for translated_node in translated_nodes
             for (index, input) in enumerate(nGraph.get_inputs(translated_node))
-                if nGraph.description(input) == "Parameter"
+                if nGraph.description(input) == "Parameter" && config[index] == PMEM
                     nGraph.splice(input, 1, translated_node, index, nGraph.move(input))
                 end
             end

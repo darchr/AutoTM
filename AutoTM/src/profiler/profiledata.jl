@@ -15,21 +15,15 @@ end
 
 enums(a::Vector{AlgorithmPerf}) = map(x -> x.enum, a)
 times(a::Vector{AlgorithmPerf}) = map(x -> x.time, a)
-function time(a::Vector{AlgorithmPerf}, e::Integer)
+function timeat(a::Vector{AlgorithmPerf}, e::Integer)
     ind = something(findfirst(x -> x.enum == e, a))
     return a[ind].time
 end
 
-function bytes(a::Vector{AlgorithmPerf}, e::Integer)
+function bytesat(a::Vector{AlgorithmPerf}, e::Integer)
     ind = something(findfirst(x -> x.enum == e, a))
     return a[ind].bytes
 end
-
-# TODO: remove
-@deprecate get_enum(x) enums(x) false
-@deprecate get_times(x) times(x) false
-@deprecate get_time(args...) time(args...) false
-@deprecate get_bytes(args...) workspace(args...) false
 
 # Indicate if a value indicates a selection of algorithm implementations
 selectable(x) = false
@@ -117,12 +111,17 @@ function XNode(node::NodeDescriptor, index)
     )
 end
 
+_length_one(x) = (@assert(isone(length(x))); x)
+
 can_select_algo(n::XNode, c::IOConfig) = isa(n.timings[c], Vector{AlgorithmPerf})
 can_select_algo(n::XNode) = any(c -> can_select_algo(n, c), configs_for(n))
 
 settime!(n::XNode, c::IOConfig, time) = n.timings[c] = time
 configs_for(n::XNode) = keys(n.timings)
+config_for(n::XNode) = configs_for(n) |> collect |> _length_one |> first
+
 gettime(n::XNode, c::IOConfig) = n.timings[c]
+gettime(n::XNode) = gettime(n, config_for(n))
 hastime(n::XNode, c::IOConfig) = haskey(n.timings, c)
 unx(n::XNode) = n.node
 
@@ -298,16 +297,22 @@ function possible_configs(data::FunctionData{T}) where {T}
         hasprofile(node) || continue
 
         # Get possible configs based on backend type
-        config_inputs, config_outputs = _configsfor(node, T)
-
-        for input_config in Iterators.product(config_inputs...)
-            for output_config in Iterators.product(config_outputs...)
-                config = IOConfig(input_config, output_config)
-                push!(configs, (node, config))
-            end
+        pc = possible_configs(node, T) 
+        for config in pc
+            push!(configs, (node, config))
         end
     end
     return configs
+end
+
+function possible_configs(node::XNode, ::Type{T}) where {T}
+    config_inputs, config_outputs = _configsfor(node, T)
+    return map(x -> IOConfig(x...), 
+        Iterators.product(
+            Iterators.product(config_inputs...),
+            Iterators.product(config_outputs...),
+        )
+    )
 end
 
 # In the CPU case, we can read directly from either local (DRAM) or remote (PMEM) memory.
@@ -315,9 +320,10 @@ end
 _configsfor(node, ::Type{nGraph.CPU}) =
     [locations(t) for t in inputs(node)], [locations(t) for t in outputs(node)]
 
-    # In the GPU case - we can only read/write in local (DRAM) memory.
+# In the GPU case - we can only read/write in local (DRAM) memory.
+# Wrap the inner DRAM in a tuple to it gets handled correctly in `Iterators.product`.
 _configsfor(node, ::Type{nGraph.GPU}) =
-    [DRAM for _ in inputs(node)], [DRAM for _ in outputs(node)]
+    ([(DRAM,) for _ in inputs(node)], [(DRAM,) for _ in outputs(node)])
 
 function getconfig(n::nGraph.Node)
     f = x -> nGraph.is_persistent(x) ? PMEM : DRAM

@@ -9,6 +9,12 @@ function __init__()
     # Setup PMEM if that option is enabled in nGraph.jl
     settings = nGraph.settings() 
     get(settings, "PMDK", false) && setup_pmem()
+
+    # just construct a CPU backend to make sure the CPU library is properly loaded
+    #
+    # Otherwise, some code that lives in the CPU portion of the nGraph code base will not
+    # be loaded/links and we error :(
+    backend = nGraph.Backend("CPU")     
 end
 
 # stdlibs

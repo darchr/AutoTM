@@ -27,16 +27,36 @@ function insert_move_node!(
         this_producer::XNode,
         producer_output::Integer,
         consumers::Vector{XNode},
-        consumer_inputs::Vector{T}
+        consumer_inputs::Vector{T},
+        action,
     ) where {T <: Integer}
 
     # First, mutate the nGraph graph underneath all the Julia types
-    move_node = Utils.insert_move_node!(
-        unx(this_producer),
-        producer_output,
-        unx.(consumers),
-        consumer_inputs
-    )
+    #
+    # Dispatch to the correct implementation depending on whether or not this is an 
+    # asynchronous move of just a normal synchronous move.
+    if !isasync(action)
+        move_node = Utils.insert_move_node!(
+            unx(this_producer),
+            producer_output,
+            unx.(consumers),
+            consumer_inputs
+        )
+    else
+        move_node = Utils.insert_moveasync_node!(
+            unx(this_producer),
+            producer_output,
+            unx.(consumers),
+            consumer_inputs,
+            unx(action.concurrent),
+        )
+
+        # If this is not a move node, make sure that the concurrent node is scheduled after
+        # the producer node
+        if !ismove(unx(this_producer))
+            @assert this_producer.index < action.concurrent.index
+        end
+    end
 
     # Now, create an appropriate xnode
     #
@@ -95,26 +115,13 @@ function configure!(fn::nGraph.NFunction, schedule, algos = nothing)
             consumers = action.consumers
             consumer_inputs = [findonly(isequal(incumbent), inputs(n)) for n in consumers]
 
-            if isasync(action)
-                move_node = insert_moveasync_node!(
-                    this_producer,
-                    producer_output,
-                    consumers,
-                    consumer_inputs,
-                    action.concurrent;
-                )
-
-                if !ismove(this_producer)
-                    @assert this_producer.index < action.concurrent.index
-                end
-            else
-                move_node = insert_move_node!(
-                    this_producer,
-                    producer_output,
-                    consumers,
-                    consumer_inputs,
-                )
-            end
+            move_node = insert_move_node!(
+                this_producer,
+                producer_output,
+                consumers,
+                consumer_inputs,
+                action
+            )
 
             # Quick debug
             if action.location == PMEM && !isasync(action)

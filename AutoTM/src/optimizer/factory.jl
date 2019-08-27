@@ -1,4 +1,6 @@
 # Default is to fallback to the inner call
+#
+# Do this fallback scheme to specialize for certain combinations of arguments if needed.
 factory(args...; kw...) = _factory(args...; kw...)
 
 # Ratio optimizers go through a refinement step

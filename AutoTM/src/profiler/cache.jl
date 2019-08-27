@@ -122,7 +122,7 @@ end
 
 struct GPUKernelCache <: AbstractKernelCache
     file::String
-    cache::Dict{GPUKernelParams, Union{Float64, AlgorithmPerf}}
+    cache::Dict{Tuple{GPUKernelParams, IOConfig}, Union{Float64, Vector{AlgorithmPerf}}}
 end
 
 # Method to determine if we can select the algorithm for this kernel.

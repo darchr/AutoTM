@@ -20,8 +20,8 @@ function configure!(f::nGraph.NFunction, frame::Frame)
             algo_var = frame.model[:algo_var]
             count = 0
             local algo_enum
-            for enum in get_enums(gettime(data, node))
-                if approx_one(algo_var[node,enum])
+            for enum in enums(gettime(node))
+                if approx_one(algo_var[node, enum])
                     count += 1
                     algo_enum = enum
                 end
@@ -30,9 +30,9 @@ function configure!(f::nGraph.NFunction, frame::Frame)
             # Only one algorithm should be selected
             @assert count == 1
             nGraph.Lib.set_algo(
-                nGraph.getpointer(node),
+                nGraph.getpointer(unx(node)),
                 convert(UInt, algo_enum),
-                convert(UInt, get_bytes(gettime(data, node), algo_enum))
+                convert(UInt, Profiler.bytesat(gettime(node), algo_enum))
             )
         end
     end
