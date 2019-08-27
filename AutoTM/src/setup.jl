@@ -57,7 +57,9 @@ _env_context() = (
 
 function setup_profiling()
     nGraph.enable_codegen()
-    nGraph.enable_timing()
+
+    # Use the built in performance counter API instead of spitting out a JSON file
+    #nGraph.enable_timing()
 end
 
 function setup_passes()

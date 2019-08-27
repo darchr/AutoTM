@@ -38,7 +38,7 @@ selectable(::Vector{AlgorithmPerf}) = true
 # We're going to abstract the notion of a Tensor so we can add a bunch of metadata to it
 @enum TensorRole Arg Constant Intermediate
 
-# Make these mutable structs since we do mutate some of the fields and want to maintain 
+# Make these mutable structs since we do mutate some of the fields and want to maintain
 # consistency in dictionaries.
 struct XTensor{T}
     tensor::TensorDescriptor
@@ -310,10 +310,13 @@ function possible_configs(data::FunctionData{T}) where {T}
     return configs
 end
 
-_configsfor(node, ::Type{nGraph.CPU}) = 
+# In the CPU case, we can read directly from either local (DRAM) or remote (PMEM) memory.
+# Thus, the only constraint on configurations is the constraint on where tensors can live.
+_configsfor(node, ::Type{nGraph.CPU}) =
     [locations(t) for t in inputs(node)], [locations(t) for t in outputs(node)]
 
-_configsfor(node, ::Type{nGraph.GPU}) = 
+    # In the GPU case - we can only read/write in local (DRAM) memory.
+_configsfor(node, ::Type{nGraph.GPU}) =
     [DRAM for _ in inputs(node)], [DRAM for _ in outputs(node)]
 
 function getconfig(n::nGraph.Node)

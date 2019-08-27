@@ -1,5 +1,12 @@
 # TODO: Hold on to constant parameters such as padding and stride for Convolutions
 
+# Build a dispatch chain for getting kernel parameters
+params(x, node::nGraph.NodeLike) = _params(x, node)
+params(x, node::XNode) = _params(x, unx(node))
+
+_params(::nGraph.Backend{nGraph.CPU}, node::nGraph.NodeLike) = CPUKernelParams(node)
+_params(::nGraph.Backend{nGraph.GPU}, node::nGraph.NodeLike) = GPUKernelParams(node)
+
 # Cache object for recording seen kernels.
 struct CPUKernelParams{IS, OS, IT, OT, NIF}
     # The description of the op

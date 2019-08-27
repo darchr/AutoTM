@@ -34,23 +34,24 @@ Keyword Arguments
 * `cache`: A cache to serve running times if a kernel has already been profiled. The cache
     must implement the function `save`.
 """
-profile(fex::nGraph.FluxExecutable; kw...) = 
+profile(fex::nGraph.FluxExecutable; kw...) =
     profile(fex.ex.ngraph_function, fex.ex.backend; kw...)
 
-function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.CPU};
+function profile(
+        f::nGraph.NFunction, 
+        backend::nGraph.Backend{T};
         cache = nothing,
         # Force re-profiling
         recache = false,
         kernel_tiling = 1,
-    )
+    ) where {T}
 
     isnothing(cache) && error("Need to define a cache")
 
-    # Go through each node
-    # Create new parameters with the same input and outputs sizes
-    # Call `copy_with_new_args` on the node in question with the new parameters
-    # Swip the input and output tensor layouts from the node in question
-    data = FunctionData(f, nGraph.CPU)
+    # Create a "FunctionData" object for this function, which allows us to record the graph
+    # structures and metadata on the Julia level.
+    data = FunctionData(f, T)
+    handle_algo_selection!(cache, backend, data)
 
     # Get all the configurations we are interested in for this run.
     # Need to make a MOVE node in order to control IO configurations.
@@ -70,7 +71,7 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.CPU};
         for node in nodes(data)
             hasprofile(node) || continue
             configs = config_dict[node]
-            kernel_params = CPUKernelParams(unx(node))
+            kernel_params = params(backend, node)
             for config in configs
                 key = (kernel_params, config)
                 delete!(cache, key)
@@ -112,7 +113,7 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.CPU};
 
         # Before we build a sub-function, get all of the cached ops.
         cached_configs = IOConfig[]
-        kernel_params = CPUKernelParams(unx(node))
+        kernel_params = params(backend, node)
         for config in configs
             key = (kernel_params, config)
             if haskey(cache, key)
@@ -129,43 +130,33 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.CPU};
         length(cached_configs) == length(configs) && continue
 
         # Extract a subgraph with just this op
-        ex, inputs, outputs, copied_ops = extract(
-            nGraph.Node(node),
-            backend;
-            ncopies = kernel_tiling,
-        )
-
-        # Profile the timings
-        for config in filter(!in(cached_configs), configs)
+        for config in Iterators.filter(!in(cached_configs), configs)
             _update!(progress_bar, node, config, ncached)
-            # setup the config
-            for op in copied_ops
-                _setup!(op, config)
-            end
 
-            # recompile the function to reflect the new config state
+            # Extract this particular node with the given configuration
+            # Place GC barriers around the instantiation of the nGraph.Executable to try
+            # to reduce interference with other extractions.
             GC.gc()
-            ex = nGraph.recompile(ex)
+            ex, inputs, outputs, copied_ops = extract(
+                nGraph.Node(unx(node)),
+                backend,
+                config;
+                ncopies = kernel_tiling,
+            )
             GC.gc()
-            function_name = nGraph.name(ex.ngraph_function)
 
-            # Run the inner loop multiple times to warm up the cache.
-            # This seems to make a pretty big difference for smaller batchsizes.
-            for _ in 1:3
+            # Run the function several times. The first time is a warm up.
+            # Timing for the second runs should be pretty consistent.
+            for _ in 1:5
                 ex(inputs, outputs)
             end
-            record_time!(
-                data,
-                node,
-                function_name,
-                copied_ops,
-                config
-            )
 
-            _cleanup!(ex.ngraph_function)
+            # Save the run time into the node
+            record_time!(node, ex, copied_ops, config)
 
-            # Save the results to the cache, and then save the cache
-            cache[(kernel_params, config)] = gettime(data, node, config)
+            # Record the saved time into the cache and save the cache to persist the data
+            # across transient or intentional (i.e. ctrl+c) failures.
+            cache[(kernel_params, config)] = gettime(node, config)
             save(cache)
         end
     end
@@ -176,63 +167,108 @@ function profile(f::nGraph.NFunction, backend::nGraph.Backend{nGraph.CPU};
     return data
 end
 
-read_timing_data(fn::nGraph.NFunction) = read_timing_data(nGraph.name(fn))
-read_timing_data(fn::AbstractString) = JSON.parsefile("$fn.timeline.json")["traceEvents"]
+#####
+##### Algorithm selection
+#####
+
+# Right now, no algorithm selection happens in the CPU case - so just special case this 
+# function to save some CPU cycles
+handle_algo_selection!(cache, backend::nGraph.Backend{nGraph.GPU}, data::FunctionData) = nothing
+
+function handle_algo_selection!(cache, backend::nGraph.Backend{nGraph.GPU}, data::FunctionData)
+    for (index, node) in enumerate(nodes(data))
+        hasprofile(node) || continue
+
+        # Get the lookup key for this node
+        kernel_params = params(backend, node)
+
+        # If we can select an algorithm for this node, use the built-in timings
+        # and skip the actual profiling.
+        if nGraph.Lib.can_select_algo(nGraph.getpointer(node))
+            if !haskey(cache, kernel_params)
+                # Cleanup
+                @info "Getting CUDNN timings for $(nGraph.name(node))"
+
+                enums = UInt32[]
+                times = Float32[]
+                bytes = UInt64[]
+                GC.gc()
+                alloc_failed = nGraph.Lib.get_algo_options(
+                    nGraph.getpointer(node),
+                    enums,
+                    times,
+                    bytes
+                )
+
+                # cuDNN returns the results of its time in milliseconds.
+                #
+                # Convert to microseconds here to make it uniform with the rest of 
+                # the timings.
+                algo_list = [
+                    AlgorithmPerf(e, 1000 * t, b) for (e,t,b) in zip(enums, times, bytes)
+                ]
+
+                # NOTE: At one point, I was checking to make sure that we caught all 
+                # allocation failures.
+                #
+                # However, it turned out that the majority of failures happened regardless 
+                # of whether we were in a new session or not, so catching these failures
+                # didn't really do much.
+                #
+                # I should probably remove this code.
+                #
+                # !allow_alloc_fail && alloc_failed && throw(error("""
+                #     Not enough memory cleaned up to sufficiently profile everything.
+                #     Restart the process and try again.
+                #     """))
+
+                cache[kernel_params] = algo_list
+                save(cache)
+            end
+        end
+    end
+    return nothing
+end
+
+#####
+##### Record the profiled runtime of a node
+#####
 
 function record_time!(
-        data::FunctionData{nGraph.CPU},
-        node::NodeDescriptor,
-        function_name,
-        ops::Vector{<:nGraph.Node},
-        expected_config
-    )
+            node::XNode,
+            ex::nGraph.Executable,
+            ops::Vector{nGraph.Node},
+            @nospecialize(config::IOConfig),
+        )
 
-    timings = read_timing_data(function_name)
-    # Get the persistence config of this op
+    # First, make sure that all of the copied ops given for recording data actually have
+    # the same IOConfig as what is expected
     configs = getconfig.(ops)
-    inds = findall(isequal(expected_config), configs)
+    inds = findall(isequal(config), configs)
 
-    found_ops = ops[inds]
-
-    # Make sure that the expected configuration is the one we actualy get.
-    if isempty(found_ops)
-        @error """
-        Expected config $expected_config.
-        Got Config $config.
-
-        Op Names: $(nGraph.name.(ops))
-        paramss: $(CPUKernelParams.(ops))
-        """
+    if isempty(inds)
+        @show configs
+        @show config
         error()
     end
 
-    # Extract the timings and record it
-    times = Float64[]
-    for op in found_ops
-        index = findfirst(x -> x["name"] == nGraph.name(op), timings)
-        @assert index !== nothing
-        push!(times, timings[index]["dur"])
-    end
+    # Just pull out the ops that match this configuration
+    ops = ops[inds]
 
-    if hastime(data, node, expected_config)
-        settime!(
-            data,
-            node,
-            expected_config,
-            min(gettime(data, node, expected_config), minimum(times))
-        )
-    else
-        settime!(
-            data,
-            node,
-            expected_config,
-            minimum(times)
-        )
-    end
+    # Get a dictionary mapping node name to runtime in microseconds
+    timing_dict = nGraph.get_performance(ex)
+
+    # Get all of the runtimes for the ops being profiled
+    times = [timing_dict[nGraph.name(op)] for op in ops]
+
+    # Set the runtime for this node as the average of the runtimes of the individual
+    # profiled ops.
+    settime!(node, config, mean(times))
+    return nothing
 end
 
 """
-    extract(node::nGraph.Node, backend::nGraph.Backend{nGraph.CPU}; ncopies = 1)
+    extract(node::nGraph.Node, backend::nGraph.Backend{nGraph.CPU}, config; ncopies = 1)
 
 Create a `nGraph.Executable` with a copy of `node` using the same input and output
 parameters. `Move` nodes will be inserted at all inputs and outputs of the copied node
@@ -241,21 +277,26 @@ if the inputs come from executable arguments and if the outputs go directly to r
 To try to capture some caching information, the node will be replicated `ncopies` times
 in the returned executable.
 """
-function extract(node::nGraph.Node, backend::nGraph.Backend{nGraph.CPU}; ncopies = 1)
+function extract(
+        node::nGraph.Node,
+        backend::nGraph.Backend,
+        @nospecialize(config::IOConfig);
+        ncopies = 1
+    )
     # Create parameters for the inputs
-    params = nGraph.Node[]
+    parameters = nGraph.Node[]
     for i in 1:nGraph.get_input_size(node)
         A = rand(nGraph.get_input_element_type(node, i), nGraph.get_input_shape(node, i)...)
-        push!(params, nGraph.parameter(A))
+        push!(parameters, nGraph.parameter(A))
     end
 
     # Insert layout conversion to match the mkldnn layouts in the original graph.
     links = nGraph.Node[]
     for i in 1:nGraph.get_input_size(node)
         if nGraph.input_needs_conversion(node, i)
-            push!(links, nGraph.convert_layout_to(params[i], node, i))
+            push!(links, nGraph.convert_layout_to(parameters[i], node, i))
         else
-            push!(links, params[i])
+            push!(links, parameters[i])
         end
     end
 
@@ -263,10 +304,12 @@ function extract(node::nGraph.Node, backend::nGraph.Backend{nGraph.CPU}; ncopies
     copied_nodes = [copy(node, links) for _ in 1:ncopies]
 
     # Make sure we're using the same version of the node.
+    #
+    # TODO: Make sure this still works on the GPU path (is_mkldnn should always return false)
     nGraph.is_mkldnn(node) && nGraph.set_mkldnn.(copied_nodes)
 
     # Compile the new function
-    paramvector = nGraph.ParameterVector(params...)
+    paramvector = nGraph.ParameterVector(parameters...)
 
     outputs = nGraph.Node[]
     for copied_node in copied_nodes
@@ -282,49 +325,78 @@ function extract(node::nGraph.Node, backend::nGraph.Backend{nGraph.CPU}; ncopies
     # Get an result output for each output of the node
     nodevector = nGraph.NodeVector(outputs)
 
-    # First, we compile the function
-    ex = nGraph.compile(backend, paramvector, nodevector)
+    # Create a pass callback to setup the function to the given configuration.
+    translated_nodes_ref = Ref(nGraph.Node[])
+    function configuration_callback(fn)
+        # We have to inspect the graph, find the nodes that do not have converted
+        # inputs, and insert out synchronous move nodes so we can control the input/output
+        # state of the node under test.
+        #
+        # But first, we have to find what happened to the original node and find it in the
+        # new graph.
+        translated_nodes = nGraph.Node[]
+        for op in fn
+            # Line it up by description and input/output sizes.
+            if params(backend, op) == params(backend, node)
+            #if CPUKernelParams(op) == CPUKernelParams(node)
+                push!(translated_nodes, op)
 
-    # Then, we have to inspect the graph, find the nodes that do not have converted
-    # inputs, and insert out synchronous move nodes so we can control the input/output
-    # state of the node under test.
-    #
-    # But first, we have to find what happened to the original node and find it in the
-    # new graph.
-    translated_nodes = nGraph.Node[]
-    for op in ex.ngraph_function
-        # Line it up by description and input/output sizes.
-        if CPUKernelParams(op) == CPUKernelParams(node)
-            push!(translated_nodes, op)
-
-        # Handle Special Cases
-        elseif nGraph.description(op) == "MatmulBias" && nGraph.description(node) == "Dot"
-            push!(translated_nodes, op)
-        end
-    end
-
-    if isempty(translated_nodes)
-        for n in copied_nodes
-            println("Copied Node: $n")
-            println("    name: $(nGraph.name(n))")
-        end
-        error("Something done gone wrong!")
-    end
-
-    for translated_node in translated_nodes
-        for (index, input) in enumerate(nGraph.get_inputs(translated_node))
-            if nGraph.description(input) == "Parameter"
-                nGraph.splice(input, 1, translated_node, index, nGraph.move(input))
+            # Handle Special Cases
+            # TODO: This should now be handled by turning off optimizations.
+            # elseif nGraph.description(op) == "MatmulBias" && nGraph.description(node) == "Dot"
+            #     push!(translated_nodes, op)
             end
         end
+
+        # Throw an error if we didn't find a node matching what we expected.
+        if isempty(translated_nodes)
+            for n in copied_nodes
+                println("Copied Node: $n")
+                println("    name: $(nGraph.name(n))")
+            end
+            error("Something done gone wrong!")
+        end
+
+        # Here, we splice Move nodes after any direct input to a translated_node that 
+        # a Parameter.
+        #
+        # Originally, this to facilitate recompilation, but now that we're moving away from
+        # recompilation, opting for adding a pass callback to the nGraph compilation 
+        # pipeline, it may be time to revisit this.
+        for translated_node in translated_nodes
+            for (index, input) in enumerate(nGraph.get_inputs(translated_node))
+                if nGraph.description(input) == "Parameter"
+                    nGraph.splice(input, 1, translated_node, index, nGraph.move(input))
+                end
+            end
+        end
+
+        # Finally, configure the translated_nodes to the form that we want.
+        for translated_node in translated_nodes 
+            _setup!(translated_node, config)
+        end
+
+        # Save the translated nodes to the external translated_nodes_ref
+        translated_nodes_ref[] = translated_nodes 
+        return nothing
     end
 
-    # Recompile the function, now with the move nodes.
-    ex = nGraph.recompile(ex)
+    # Setup the above function as a callback
+    callbacks = CallbackChain()
+    callback!(callbacks, configuration_callback)
+
+    # Compile the function
+    ex = nGraph.compile(
+        backend, 
+        paramvector, 
+        nodevector; 
+        callback = callbacks, 
+        emit_timing = true
+    )
 
     # Make these any to make them compatible with the inner call for nGraph.Executable
-    input_tensors = Any[nGraph.Tensor(backend, x).ptr for x in params]
+    input_tensors = Any[nGraph.Tensor(backend, x).ptr for x in parameters]
     output_tensors = Any[nGraph.Tensor(backend, x).ptr for x in outputs]
 
-    return ex, input_tensors, output_tensors, translated_nodes
+    return ex, input_tensors, output_tensors, translated_nodes_ref[]
 end

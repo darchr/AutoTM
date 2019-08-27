@@ -35,7 +35,8 @@ using Serialization, Dates
 
 using ..Utils
 using ProgressMeter
-using JSON
+#using JSON
+using Statistics
 import nGraph
 import ..AutoTM._env_context
 

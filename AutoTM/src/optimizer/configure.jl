@@ -21,6 +21,8 @@ function _initial_loc(path)
     end
 end
 
+# Define this at the XNode level because we have to correctly maintain our "shadow" copy
+# of the nGraph graph
 function insert_move_node!(
         this_producer::XNode,
         producer_output::Integer,
@@ -150,14 +152,5 @@ function configure!(fn::nGraph.NFunction, schedule, algos = nothing)
 
     # Set algorithms and workspaces
     return nothing
-end
-
-function configure!(fex::nGraph.FluxExecutable, schedule)
-    f = fex.ex.ngraph_function
-    configure!(f, schedule)
-
-    @info "Recompiling Function"
-    fex = nGraph.recompile(fex)
-    return fex
 end
 
