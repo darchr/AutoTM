@@ -68,17 +68,6 @@ isparam(t) = isparam(nGraph.description(t))
 isresult(str::String) = startswith(str, "Result")
 isresult(t) = isresult(nGraph.description(t))
 
-# Helper functions
-# function _producer(tensor::TensorDescriptor, nodes::Vector{NodeDescriptor})
-#     idx = findonly(x -> in(tensor, outputs(x)), nodes)
-#     return nodes[idx]
-# end
-# 
-# function _lastuser(tensor::TensorDescriptor, nodes::Vector{NodeDescriptor})
-#     idx = findonly(x -> in(tensor, outputs(x)), reverse(nodes))
-#     return nodes[end + 1 - idx]
-# end
-
 input_tensors(fex::nGraph.FluxExecutable) = input_tensors(fex.ex.ngraph_function)
 function input_tensors(f::nGraph.NFunction)
     params = NodeDescriptor.(nGraph.get_parameters(f))

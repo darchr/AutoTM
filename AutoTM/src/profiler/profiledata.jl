@@ -25,10 +25,6 @@ function bytesat(a::Vector{AlgorithmPerf}, e::Integer)
     return a[ind].bytes
 end
 
-# Indicate if a value indicates a selection of algorithm implementations
-selectable(x) = false
-selectable(::Vector{AlgorithmPerf}) = true
-
 # We're going to abstract the notion of a Tensor so we can add a bunch of metadata to it
 @enum TensorRole Arg Constant Intermediate
 
@@ -122,7 +118,6 @@ config_for(n::XNode) = configs_for(n) |> collect |> _length_one |> first
 
 gettime(n::XNode, c::IOConfig) = n.timings[c]
 gettime(n::XNode) = gettime(n, config_for(n))
-hastime(n::XNode, c::IOConfig) = haskey(n.timings, c)
 unx(n::XNode) = n.node
 
 Utils.hasprofile(n::XNode) = hasprofile(n.node)

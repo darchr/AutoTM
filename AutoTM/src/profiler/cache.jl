@@ -168,25 +168,3 @@ function save(cache::AbstractKernelCache)
     serialize(cache.file, cache_db)
 end
 
-unsafe_load_cache(file) = deserialize(file)
-
-# Methods for working with and filtering caches.
-nt_filter(nt::NamedTuple, cache::AbstractKernelCache) = nt_filter(nt, cache.cache)
-function nt_filter(nt::NamedTuple, cache::Dict)
-    param_config = collect(keys(cache)) 
-    filter!(x -> all(getfield(first(x), k) == v for (k,v) in pairs(nt)), param_config)
-    return Dict(k => cache[k] for k in param_config)
-end
-
-function _filter(nt::NamedTuple, cache::Dict)
-    k = unique(first.(collect(keys(cache))))
-    filter!(x -> all(getfield(x, k) == v for (k,v) in pairs(nt)), k)
-    return k
-end
-
-function choices(cache::AbstractKernelCache, sym::Symbol, nt::NamedTuple = NamedTuple())
-    # Iterate through the keys in the cache.
-    k = _filter(nt, cache.cache)
-    return unique(getfield.(k, sym))
-end
-
