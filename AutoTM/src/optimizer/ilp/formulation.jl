@@ -36,7 +36,12 @@ mutable struct ILPHolder{T <: ILPFormulationType}
     dram_limits::Vector{Int}
     descriptors::Dict{XTensor{XNode}, TensorMeta}
     async_move_vars::Dict{XNode, Vector{JuMP.VariableRef}}
-    node_to_limit_index::Dict{XNode, Int}
+
+    # Need to key this with string names instead of XNode because of recompiling the ngraph
+    # function and reporifling.
+    #
+    # New XNodes get created that don't hash the same as the old ones.
+    node_to_limit_index::Dict{String, Int}
 
     # Bandwidths
     read_bandwidth::Int64
@@ -93,10 +98,11 @@ function update(I::T, data::FunctionData) where {T <: ILPHolder}
 
     # Keep track of the indices that need their limits lowered
     indices = Int[]
+
     for tensor in offending_tensors
         for node in users(tensor)
             (ismove(unx(node)) || !hasprofile(node)) && continue
-            push!(indices, I.node_to_limit_index[node])
+            push!(indices, I.node_to_limit_index[nGraph.name(node)])
         end
     end
 
@@ -115,10 +121,11 @@ function update(I::T, data::FunctionData) where {T <: ILPHolder}
     end
 
     # Return a new ILHolder
-    return T(dram_limits,
+    return T(
+        dram_limits,
         Dict{XTensor{XNode}, TensorMeta}(),
         Dict{XNode, Vector{JuMP.VariableRef}}(),
-        Dict{XNode, Int}(),
+        Dict{String, Int}(),
         rb(I),
         wb(I),
         rba(I),
@@ -137,7 +144,7 @@ static(dram_limits; defrag = false) = ILPHolder{IsFixed}(
     dram_limits,
     Dict{XTensor{XNode}, TensorMeta}(),
     Dict{XNode, Vector{JuMP.VariableRef}}(),
-    Dict{XNode, Int}(),
+    Dict{String, Int}(),
     1,1,1,1,
     defrag,
 )
@@ -146,7 +153,7 @@ synchronous(dram_limits, a, b; defrag = false) = ILPHolder{IsSynchronous}(
     dram_limits,
     Dict{XTensor{XNode}, TensorMeta}(),
     Dict{XNode, Vector{JuMP.VariableRef}}(),
-    Dict{XNode, Int}(),
+    Dict{String, Int}(),
     a,b,1,1,
     defrag,
 )
@@ -155,7 +162,7 @@ asynchronous(dram_limits,a,b,c,d; defrag = false) = ILPHolder{IsAsynchronous}(
     dram_limits,
     Dict{XTensor{XNode}, TensorMeta}(),
     Dict{XNode, Vector{JuMP.VariableRef}}(),
-    Dict{XNode, Int}(),
+    Dict{String, Int}(),
     a,b,c,d,
     defrag,
 )
@@ -849,7 +856,7 @@ function add_constraints!(F::Frame)
     for (index, tensors) in iter
         node = nodes(data)[index]
         hasprofile(node) || continue
-        F.modeltype.node_to_limit_index[node] = index
+        F.modeltype.node_to_limit_index[nGraph.name(node)] = index
 
         # Add DRAM constraint for the workspace
         if can_select_algo(node)

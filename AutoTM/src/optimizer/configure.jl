@@ -91,9 +91,6 @@ function configure!(fn::nGraph.NFunction, schedule, algos = nothing)
 
         for action in actions
             consumers = action.consumers
-
-            @show consumers
-            @show incumbent
             consumer_inputs = [findonly(isequal(incumbent), inputs(n)) for n in consumers]
 
             if isasync(action)

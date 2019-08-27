@@ -25,6 +25,7 @@ function bytes(a::Vector{AlgorithmPerf}, e::Integer)
     return a[ind].bytes
 end
 
+# TODO: remove
 @deprecate get_enum(x) enums(x) false
 @deprecate get_times(x) times(x) false
 @deprecate get_time(args...) time(args...) false
@@ -37,6 +38,8 @@ selectable(::Vector{AlgorithmPerf}) = true
 # We're going to abstract the notion of a Tensor so we can add a bunch of metadata to it
 @enum TensorRole Arg Constant Intermediate
 
+# Make these mutable structs since we do mutate some of the fields and want to maintain 
+# consistency in dictionaries.
 struct XTensor{T}
     tensor::TensorDescriptor
     users::Vector{T}
@@ -72,7 +75,7 @@ end
 
 Utils.isconstant(t::XTensor) = t.role == Constant
 isarg(t::XTensor) = t.role == Arg
-nGraph.is_persistent(t::XTensor) = nGraph.is_persistent(unx(t))
+is_persistent(t::XTensor) = nGraph.is_persistent(unx(t))
 
 users(t::XTensor) = t.users
 producer(t::XTensor) = first(t.users)
