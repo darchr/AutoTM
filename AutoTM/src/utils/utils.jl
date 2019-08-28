@@ -37,7 +37,7 @@ export TensorDescriptor, NodeDescriptor, inputs, outputs, description
 export getratio, ratio_string, footprint, compare_ratio
 
 # Random
-export approx_one, find_vertex, findonly, dict_push!
+export approx_one, find_vertex, find_edge, findonly, dict_push!
 
 import LightGraphs
 import JuMP 
@@ -97,6 +97,12 @@ dict_push!(d, k, v) = haskey(d, k) ? push!(d[k], v) : (d[k] = [v])
 
 function find_vertex(g, f)
     iter = filter(v -> f(g,v), collect(LightGraphs.vertices(g)))
+    # Make sure we only have one match
+    @assert length(iter) == 1
+    return first(iter)
+end
+function find_edge(g, f)
+    iter = filter(v -> f(g,v), collect(LightGraphs.edges(g)))
     # Make sure we only have one match
     @assert length(iter) == 1
     return first(iter)

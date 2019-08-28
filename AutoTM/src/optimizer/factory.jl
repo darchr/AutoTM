@@ -34,6 +34,7 @@ function _factory(
     limits_ref = Ref{Vector{Int}}()
     creation_times = Float64[]
     optimization_times = Float64[]
+    remote_args_ref = Ref{Set{TensorDescriptor}}()
 
     #A callback that profiles the ngraph function
     function cb(f::nGraph.NFunction)
@@ -68,11 +69,18 @@ function _factory(
         creation_time = @elapsed(frame = create_model(modeltype, data))
         optimization_time = @elapsed(optimize!(frame))
 
+        # update the frame with the local args
+        for tensor in tensors(data) 
+            islocalarg(frame, tensor) && push!(frame.local_args, tensor)
+        end
+
         push!(creation_times, creation_time)
         push!(optimization_times, optimization_time)
 
-        tensor_map = configure!(f, frame)
+        remote_args = configure!(f, frame)
         frame_ref[] = frame
+        remote_args_ref[] = remote_args
+
         return nothing
     end
 
@@ -87,6 +95,10 @@ function _factory(
             throw(CompilerRetry())
         end
     end
+
+    # Create a function to let the nGraph.jl compiler know if a function parameter or 
+    # output is supposed to be remote
+    isremote(x::nGraph.Node) = in(first(outputs(x)), remote_args_ref[])
 
     # Compile the function to a ngraph executable
     local fex
@@ -109,6 +121,7 @@ function _factory(
                 args...;
                 callback = callbacks,
                 emit_timing = true,
+                isremote = isremote,
                 kw...
             )
         catch e
@@ -116,6 +129,10 @@ function _factory(
             retry = true
         end
     end
+
+    # Following compilation, set up the appropriate arguments to live in persistent memory 
+    # or not.
+    remote_args = remote_args_ref[]
 
     metadata = Dict(
         :creation_times => creation_times,

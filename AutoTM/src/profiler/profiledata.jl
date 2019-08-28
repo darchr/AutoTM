@@ -41,10 +41,10 @@ end
 function XTensor(tensor::TensorDescriptor)
     # Be default, everything can live in DRAM
     locations = [DRAM]
+
     # Add in tensors that may also live in PMEM
     xtensor = XTensor(tensor, XNode[], role(tensor), sizeof(tensor), locations)
-
-    if !isconstant(xtensor) && !isarg(xtensor)
+    if !isconstant(xtensor)# && !isarg(xtensor)
         push!(xtensor.locations, PMEM)
     end
     return xtensor
@@ -172,7 +172,7 @@ function FunctionData(fn::nGraph.NFunction, ::Type{T}) where {T}
     end
 
     # Run liveness analysis on the set of nodes.
-    liveness!(nodes)
+    liveness!(nodes, tensors)
 
     return FunctionData{T}(tensors, nodes)
 end
@@ -188,12 +188,15 @@ end
 ##### Liveness Analysis
 #####
 
-function liveness!(nodes::Vector{XNode})
+function liveness!(nodes::Vector{XNode}, tensors::Set{XTensor{XNode}})
     # forward pass
     for op in nodes
         empty!(op.newlist)
         append!(op.newlist, filter(x -> !isarg(x) && !isconstant(x), outputs(op)))
     end
+
+    # add all of the argument tensors to the liveness list for the first op
+    append!(first(nodes).newlist, filter(x -> isarg(x), tensors))
 
     # backward pass
     freed_tensors = Set{XTensor{XNode}}()

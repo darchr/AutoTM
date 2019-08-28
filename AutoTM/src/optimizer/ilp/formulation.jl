@@ -34,6 +34,11 @@ struct IsAsynchronous <: ILPFormulationType end
 
 mutable struct ILPHolder{T <: ILPFormulationType}
     dram_limits::Vector{Int}
+
+    # Function parameters that are in the "local" memory and thus should be counted for the
+    # total memory consumption.
+    local_args::Vector{XTensor{XNode}}
+
     descriptors::Dict{XTensor{XNode}, TensorMeta}
     async_move_vars::Dict{XNode, Vector{JuMP.VariableRef}}
 
@@ -56,8 +61,18 @@ end
 # Add factory methods
 exceeds_limit(fex::nGraph.FluxExecutable, I::ILPHolder) =
     exceeds_limit(fex.ex.ngraph_function, I)
-exceeds_limit(f::nGraph.NFunction, I::ILPHolder) =
-    I.defrag && ((nGraph.get_temporary_pool_size(f) / 1E6) > maxlimit(I))
+
+function exceeds_limit(f::nGraph.NFunction, I::ILPHolder)
+    I.defrag || return false
+
+    # Get the allocated bytes, including local arguments
+    io_bytes = isempty(I.local_args) ? 0 : sum(sizeof, I.local_args)
+    @info "IO Bytes: " io_bytes
+    alloc_bytes = io_bytes + nGraph.get_temporary_pool_size(f)
+
+    # Convert to MB and compare to the maximum limit
+    return (alloc_bytes / 1E6) > maxlimit(I)
+end
 
 # The general idea is that heap fragmentation causes the actual allocated amount to
 # exceed the limit.
@@ -69,6 +84,7 @@ exceeds_limit(f::nGraph.NFunction, I::ILPHolder) =
 # limit.
 function update(I::T, data::FunctionData) where {T <: ILPHolder}
     dram_limits = I.dram_limits
+    io_bytes = isempty(I.local_args) ? 0 : sum(sizeof, I.local_args)
     ml = maxlimit(I)
 
     # Go through all of the live tensors - find the first that exceeds the limit
@@ -81,7 +97,7 @@ function update(I::T, data::FunctionData) where {T <: ILPHolder}
 
         # Find all out of bounds tensors
         for tensor in dram_tensors
-            sz = (nGraph.get_pool_offset(unx(tensor)) + sizeof(tensor)) / 1E6
+            sz = io_bytes + (nGraph.get_pool_offset(unx(tensor)) + sizeof(tensor)) / 1E6
             if sz > ml
                 push!(offending_tensors, tensor)
                 worst = max(worst, sz)
@@ -123,6 +139,7 @@ function update(I::T, data::FunctionData) where {T <: ILPHolder}
     # Return a new ILHolder
     return T(
         dram_limits,
+        XTensor{XNode}[],
         Dict{XTensor{XNode}, TensorMeta}(),
         Dict{XNode, Vector{JuMP.VariableRef}}(),
         Dict{String, Int}(),
@@ -142,6 +159,7 @@ wba(I::ILPHolder) = I.write_bandwidth_async
 
 static(dram_limits; defrag = false) = ILPHolder{IsFixed}(
     dram_limits,
+    XTensor{XNode}[],
     Dict{XTensor{XNode}, TensorMeta}(),
     Dict{XNode, Vector{JuMP.VariableRef}}(),
     Dict{String, Int}(),
@@ -151,6 +169,7 @@ static(dram_limits; defrag = false) = ILPHolder{IsFixed}(
 
 synchronous(dram_limits, a, b; defrag = false) = ILPHolder{IsSynchronous}(
     dram_limits,
+    XTensor{XNode}[],
     Dict{XTensor{XNode}, TensorMeta}(),
     Dict{XNode, Vector{JuMP.VariableRef}}(),
     Dict{String, Int}(),
@@ -160,6 +179,7 @@ synchronous(dram_limits, a, b; defrag = false) = ILPHolder{IsSynchronous}(
 
 asynchronous(dram_limits,a,b,c,d; defrag = false) = ILPHolder{IsAsynchronous}(
     dram_limits,
+    XTensor{XNode}[],
     Dict{XTensor{XNode}, TensorMeta}(),
     Dict{XNode, Vector{JuMP.VariableRef}}(),
     Dict{String, Int}(),
@@ -350,7 +370,12 @@ function _getgadgets(::ILPHolder{IsFixed}, data::FunctionData, t::XTensor)
     return [(node = producer, move_type = MOVE_NONE)], reference_map
 end
 
-function edge_metadata(src, dst, s, d, src_move_type)
+# TODO: When can't do anything because exhausted, make ASCII art for what's going on with
+# these tensor graphs.
+#=
+=#
+
+function edge_metadata(src, dst, s, d, src_move_type, tensor::XTensor)
     # Setup the correct move annotations.
     if src_move_type == MOVE_ASYNC
         edge_read_type = EDGE_ASYNC_READ
@@ -367,6 +392,10 @@ function edge_metadata(src, dst, s, d, src_move_type)
         isone(d) && return EdgeMetadata(EDGE_NONE)
     elseif (src, dst) == (LOC_SOURCE, LOC_PMEM)
         isone(d) && return EdgeMetadata(EDGE_NONE)
+    # If the tensor is an argument, we need to create an edge directly from source to sink.
+    # This indicates that the tensor begins in DRAM - so will always be in DRAM
+    elseif (src, dst) == (LOC_SOURCE, LOC_SINK) 
+        isarg(tensor) && return EdgeMetadata(EDGE_NONE)
 
     ### LOC_DRAM as source
 
@@ -442,9 +471,14 @@ function preprocess!(S::ILPHolder, data::FunctionData)
             for location in locations(tensor)
                 if location == DRAM
                     # Add DRAM nodes
-                    add_vertex!(g,
-                        VertexMetadata(count, node, LOC_DRAM_PRE, move_type, isuser, nv(g)+1)
-                    )
+                    #
+                    # Do not add these nodes if this tensor is an argument because it will
+                    # have already originated in PMM
+                    if !isarg(tensor) 
+                        add_vertex!(g,
+                            VertexMetadata(count, node, LOC_DRAM_PRE, move_type, isuser, nv(g)+1)
+                        )
+                    end
 
                     # only add a DRAM node if there could have been a write to PMEM
                     if count > 1
@@ -485,6 +519,7 @@ function preprocess!(S::ILPHolder, data::FunctionData)
                 src_meta.gadget,
                 dst_meta.gadget,
                 src_meta.move_type,
+                tensor,
             )
 
             isnothing(metadata) && continue
@@ -570,7 +605,7 @@ function add_tensors!(frame::Frame)
     )
 
     # A tensor in DRAM is live if any of its incoming edges are used.
-    @showprogress 1 "Creating DRAM variables " for tensor in tensors(data)
+    for tensor in tensors(data)
         desc = descriptor(frame, tensor)
         g = graph(desc)
 
@@ -617,6 +652,28 @@ function add_tensors!(frame::Frame)
                 sum(tensor_graphs[tensor, e] for e in _edges) >=
                     tensor_in_dram_post[tensor, nGraph.name(user)]
             )
+        end
+
+        # Finally, if this is an argument node, we say that a tensor is in DRAM if the 
+        # direct edge from LOC_SOURCE to LOC_SINK is taken
+        if isarg(tensor) 
+            # Find the source to sink edge.
+            # Will error if this edge doesn't exist, so serves as a form of error checking
+            edge = find_edge(g,
+                (g, e) -> _meta(g, src(e)).location == LOC_SOURCE && _meta(g, dst(e)).location == LOC_SINK
+            )
+
+            # If this edge it taken, these tensors are ALWAYS in DRAM
+            for user in users(tensor)
+                @constraint(
+                    frame.model, 
+                    tensor_in_dram[tensor, nGraph.name(user)] >= tensor_graphs[tensor, edge]
+                )
+                @constraint(
+                    frame.model, 
+                    tensor_in_dram_post[tensor, nGraph.name(user)] >= tensor_graphs[tensor, edge]
+                )
+            end
         end
     end
 
@@ -884,5 +941,27 @@ function add_constraints!(F::Frame)
     end
 
     return nothing
+end
+
+#####
+##### Queries
+#####
+
+# Check if a given tensor is:
+# 1. A function argument (nGraph function input or output)
+# 2. Assigned to DRAM for the lifetime of the function
+function islocalarg(frame, tensor::XTensor)
+    # Determine if it's an argument
+    isarg(tensor) || return false
+
+    # Find the critical edge from LOC_SOURCE to LOC_SINK
+    # This tensor is assigned to the local memory if this edge is taken (has a solved value
+    # of one)
+    g = descriptor(frame, tensor).graph
+    edge = find_edge(g,
+        (g, e) -> _meta(g, src(e)).location == LOC_SOURCE && _meta(g, dst(e)).location == LOC_SINK
+    )
+     
+    return approx_one(frame.model[:tensor_graphs][tensor, edge])
 end
 

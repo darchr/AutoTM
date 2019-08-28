@@ -38,7 +38,7 @@ function configure!(f::nGraph.NFunction, frame::Frame)
     end
 
     @info "Calling Inner Configure"
-    return configure!(f, schedule)
+    return configure!(f, schedule, data)
 end
 
 # Get the path of the tensor traced through the graph

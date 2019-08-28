@@ -84,7 +84,7 @@ end
 ##### inner configure!
 #####
 
-function configure!(fn::nGraph.NFunction, schedule, algos = nothing)
+function configure!(fn::nGraph.NFunction, schedule, data)
     # Unpack args
     _cleanup!(fn)
 
@@ -146,11 +146,21 @@ function configure!(fn::nGraph.NFunction, schedule, algos = nothing)
     ##### Apply the config
     #####
 
+    # Make a map from tensor descriptors to XTensors.
+    # This will be returned to notify upstream processes which inputs should be in PMM
+    arg_descriptors = Set(t.tensor for t in tensors(data) if isarg(t))
+    remote_args = Set{TensorDescriptor}()
+    
     # Iterate over each node and each output tensor for each node. Each output tensor should
     # have an assigned location
     for node in fn, output in outputs(NodeDescriptor(node))
         if config[output] == PMEM
             make_persistent(output)
+
+            # Add the xtensor to the list of persistent args if applicable
+            if in(output, arg_descriptors)
+                push!(remote_args, output)
+            end
         end
     end
 
@@ -158,6 +168,6 @@ function configure!(fn::nGraph.NFunction, schedule, algos = nothing)
     priority_pass!(fn)
 
     # Set algorithms and workspaces
-    return nothing
+    return remote_args
 end
 
