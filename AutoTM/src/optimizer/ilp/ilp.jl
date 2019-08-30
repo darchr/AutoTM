@@ -3,7 +3,14 @@ mutable struct Frame{T}
     modeltype::T
     model::JuMP.Model
     profile_data::FunctionData
+
+    # Function parameters that are in the "local" memory and thus should be counted for the
+    # total memory consumption.
+    local_args::Vector{XTensor{XNode}}
 end
+
+Frame(modeltype, model::JuMP.Model, profile_data::FunctionData) = 
+    Frame(modeltype, model, profile_data, XTensor{XNode}[])
 
 limit(F::Frame) = limit(F.modeltype)
 JuMP.optimize!(F::Frame) = optimize!(F.model)

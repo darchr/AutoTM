@@ -1,7 +1,32 @@
+function _initial_loc(path)
+    # In the case where an argument tensor is permenantly assigned to DRAM, it will
+    # have no `path`.
+    #
+    # Therefore, the absense of `path` implies an initial location of DRAM
+    isempty(path) && return DRAM
+
+    initial_location = first(path).location
+    if initial_location == LOC_PMEM
+        return PMEM
+    elseif isdram(initial_location)
+        return DRAM
+    else
+        error("$(initial_location)???")
+    end
+end
+
 # Overload for a Frame
 function configure!(f::nGraph.NFunction, frame::Frame)
     # Get initial schedules for the frame
     initial_schedule = get_schedule(frame)
+
+    # Sanity check to make sure returned `paths` are only empty if the tensor is a
+    # function argument
+    for (t, (tensor_graph, path)) in initial_schedule 
+        if isempty(path)
+            @assert isarg(t)
+        end
+    end
 
     # Convert this into an appropriate format for the inner `configure!`
     schedule = Dict(
@@ -110,6 +135,10 @@ read_from_pmem(a, b) = ispmem(a) && isdram(b)
 
 function getactions(tensor_graph, vertices::Vector{VertexMetadata})
     actions = MoveAction[]
+
+    # Same as for the initial location - vertices is empty, this implies that the tensor
+    # is an argument and will thus have no actions.
+    isempty(vertices) && return actions
     written_to_pmem = false
 
     for i in Iterators.drop(eachindex(vertices), 1)

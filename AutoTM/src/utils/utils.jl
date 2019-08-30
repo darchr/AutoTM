@@ -37,7 +37,7 @@ export TensorDescriptor, NodeDescriptor, inputs, outputs, description
 export getratio, ratio_string, footprint, compare_ratio
 
 # Random
-export approx_one, find_vertex, find_edge, findonly, dict_push!
+export approx_one, find_vertex, find_edge, findonly, dict_push!, vflatten
 
 import LightGraphs
 import JuMP 
@@ -107,5 +107,7 @@ function find_edge(g, f)
     @assert length(iter) == 1
     return first(iter)
 end
+
+vflatten(x...) = Iterators.flatten(x)
 
 end

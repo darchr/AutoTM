@@ -10,17 +10,6 @@ struct MoveAction
 end
 isasync(M::MoveAction) = !isnothing(M.concurrent)
 
-function _initial_loc(path)
-    initial_location = first(path).location
-    if initial_location == LOC_PMEM
-        return PMEM
-    elseif isdram(initial_location)
-        return DRAM
-    else
-        error("$(initial_location)???")
-    end
-end
-
 # Define this at the XNode level because we have to correctly maintain our "shadow" copy
 # of the nGraph graph
 function insert_move_node!(

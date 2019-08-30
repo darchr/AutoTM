@@ -82,10 +82,10 @@ function fastest_time(frame)
 
     time = 0.0
     for node in filter(hasprofile, nodes(data))
-        if nGraph.Lib.can_select_algo(nGraph.getpointer(node))
-            time += minimum(get_times(gettime(data, node)))
+        if nGraph.Lib.can_select_algo(nGraph.getpointer(unx(node)))
+            time += minimum(times(gettime(node)))
         else
-            time += gettime(data, node)
+            time += gettime(node)
         end
     end
 

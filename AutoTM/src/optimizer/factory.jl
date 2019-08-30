@@ -70,6 +70,7 @@ function _factory(
         optimization_time = @elapsed(optimize!(frame))
 
         # update the frame with the local args
+        empty!(frame.local_args)
         for tensor in tensors(data) 
             islocalarg(frame, tensor) && push!(frame.local_args, tensor)
         end
@@ -87,9 +88,13 @@ function _factory(
     # Defrag callback - if a function needs defragging, throws a `CompilerExit` exception to
     # avoid nGraph trying to allocate too much GPU memory
     function defrag_cb(f::nGraph.NFunction)
-        if exceeds_limit(f, frame_ref[].modeltype)
+        if exceeds_limit(f, frame_ref[].modeltype, frame_ref[].local_args)
             # This is pretty ugly - sorry about that.
-            modeltype = update(frame_ref[].modeltype, profile(f, backend; profile_kw...))
+            modeltype = update(
+                frame_ref[].modeltype, 
+                frame_ref[].local_args, 
+                profile(f, backend; profile_kw...)
+            )
             limits_ref[] = modeltype.dram_limits
 
             throw(CompilerRetry())

@@ -35,10 +35,6 @@ struct IsAsynchronous <: ILPFormulationType end
 mutable struct ILPHolder{T <: ILPFormulationType}
     dram_limits::Vector{Int}
 
-    # Function parameters that are in the "local" memory and thus should be counted for the
-    # total memory consumption.
-    local_args::Vector{XTensor{XNode}}
-
     descriptors::Dict{XTensor{XNode}, TensorMeta}
     async_move_vars::Dict{XNode, Vector{JuMP.VariableRef}}
 
@@ -59,14 +55,14 @@ mutable struct ILPHolder{T <: ILPFormulationType}
 end
 
 # Add factory methods
-exceeds_limit(fex::nGraph.FluxExecutable, I::ILPHolder) =
+exceeds_limit(fex::nGraph.FluxExecutable, I::ILPHolder, local_args) =
     exceeds_limit(fex.ex.ngraph_function, I)
 
-function exceeds_limit(f::nGraph.NFunction, I::ILPHolder)
+function exceeds_limit(f::nGraph.NFunction, I::ILPHolder, local_args)
     I.defrag || return false
 
     # Get the allocated bytes, including local arguments
-    io_bytes = isempty(I.local_args) ? 0 : sum(sizeof, I.local_args)
+    io_bytes = isempty(local_args) ? 0 : sum(sizeof, local_args)
     @info "IO Bytes: " io_bytes
     alloc_bytes = io_bytes + nGraph.get_temporary_pool_size(f)
 
@@ -82,9 +78,9 @@ end
 #
 # This should cause the ngraph allocator to free up some space so we don't go over the
 # limit.
-function update(I::T, data::FunctionData) where {T <: ILPHolder}
+function update(I::T, local_args, data::FunctionData) where {T <: ILPHolder}
     dram_limits = I.dram_limits
-    io_bytes = isempty(I.local_args) ? 0 : sum(sizeof, I.local_args)
+    io_bytes = isempty(local_args) ? 0 : sum(sizeof, local_args)
     ml = maxlimit(I)
 
     # Go through all of the live tensors - find the first that exceeds the limit
@@ -139,7 +135,6 @@ function update(I::T, data::FunctionData) where {T <: ILPHolder}
     # Return a new ILHolder
     return T(
         dram_limits,
-        XTensor{XNode}[],
         Dict{XTensor{XNode}, TensorMeta}(),
         Dict{XNode, Vector{JuMP.VariableRef}}(),
         Dict{String, Int}(),
@@ -159,7 +154,6 @@ wba(I::ILPHolder) = I.write_bandwidth_async
 
 static(dram_limits; defrag = false) = ILPHolder{IsFixed}(
     dram_limits,
-    XTensor{XNode}[],
     Dict{XTensor{XNode}, TensorMeta}(),
     Dict{XNode, Vector{JuMP.VariableRef}}(),
     Dict{String, Int}(),
@@ -169,7 +163,6 @@ static(dram_limits; defrag = false) = ILPHolder{IsFixed}(
 
 synchronous(dram_limits, a, b; defrag = false) = ILPHolder{IsSynchronous}(
     dram_limits,
-    XTensor{XNode}[],
     Dict{XTensor{XNode}, TensorMeta}(),
     Dict{XNode, Vector{JuMP.VariableRef}}(),
     Dict{String, Int}(),
@@ -179,7 +172,6 @@ synchronous(dram_limits, a, b; defrag = false) = ILPHolder{IsSynchronous}(
 
 asynchronous(dram_limits,a,b,c,d; defrag = false) = ILPHolder{IsAsynchronous}(
     dram_limits,
-    XTensor{XNode}[],
     Dict{XTensor{XNode}, TensorMeta}(),
     Dict{XNode, Vector{JuMP.VariableRef}}(),
     Dict{String, Int}(),
@@ -609,6 +601,19 @@ function add_tensors!(frame::Frame)
         desc = descriptor(frame, tensor)
         g = graph(desc)
 
+        # Create a container for the critical edge from LOC_SOURCE to LOC_SINK if this is
+        # an argument tensor
+        skip_edge = []
+        if isarg(tensor) 
+            # Find the source to sink edge.
+            # Will error if this edge doesn't exist, so serves as a form of error checking
+            edge = find_edge(g,
+                (g, e) -> _meta(g, src(e)).location == LOC_SOURCE && 
+                          _meta(g, dst(e)).location == LOC_SINK
+            )
+            push!(skip_edge, edge)
+        end
+
         for user in users(desc)
             # Get the DRAM for this op.
             verts = filter(
@@ -617,7 +622,7 @@ function add_tensors!(frame::Frame)
             )
 
             # Map `inedges` to `vertex_iter` and iterats over all those edges
-            _iter = Iterators.flatten(inedges.(Ref(g), verts))
+            _iter = vflatten(Iterators.flatten(inedges.(Ref(g), verts)), skip_edge)
             for e in _iter
                 @constraint(
                     frame.model,
@@ -641,7 +646,8 @@ function add_tensors!(frame::Frame)
                     ) && _meta(g, src(e)).op == user),
                 collect(edges(g))
             )
-            for e in _edges
+            _iter = vflatten(_edges, skip_edge)
+            for e in _iter
                 @constraint(
                     frame.model,
                     tensor_in_dram_post[tensor, nGraph.name(user)] >= tensor_graphs[tensor, e]
@@ -649,31 +655,9 @@ function add_tensors!(frame::Frame)
             end
 
             @constraint(frame.model,
-                sum(tensor_graphs[tensor, e] for e in _edges) >=
+                sum(tensor_graphs[tensor, e] for e in _iter) >=
                     tensor_in_dram_post[tensor, nGraph.name(user)]
             )
-        end
-
-        # Finally, if this is an argument node, we say that a tensor is in DRAM if the 
-        # direct edge from LOC_SOURCE to LOC_SINK is taken
-        if isarg(tensor) 
-            # Find the source to sink edge.
-            # Will error if this edge doesn't exist, so serves as a form of error checking
-            edge = find_edge(g,
-                (g, e) -> _meta(g, src(e)).location == LOC_SOURCE && _meta(g, dst(e)).location == LOC_SINK
-            )
-
-            # If this edge it taken, these tensors are ALWAYS in DRAM
-            for user in users(tensor)
-                @constraint(
-                    frame.model, 
-                    tensor_in_dram[tensor, nGraph.name(user)] >= tensor_graphs[tensor, edge]
-                )
-                @constraint(
-                    frame.model, 
-                    tensor_in_dram_post[tensor, nGraph.name(user)] >= tensor_graphs[tensor, edge]
-                )
-            end
         end
     end
 
@@ -909,8 +893,7 @@ function add_constraints!(F::Frame)
     # Unpack some variables
     data = F.profile_data
 
-    iter = enumerate(live_tensors(data))
-    for (index, tensors) in iter
+    for (index, tensors) in enumerate(live_tensors(data))
         node = nodes(data)[index]
         hasprofile(node) || continue
         F.modeltype.node_to_limit_index[nGraph.name(node)] = index
