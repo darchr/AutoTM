@@ -18,3 +18,5 @@ docs/build
 deps
 data
 tags
+desc_file
+onnx/

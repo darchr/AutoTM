@@ -19,6 +19,7 @@ disable_passes() = ENV["NGRAPH_PASS_ENABLES"] = join((
     "CPUFusion:0",
     "CPUHorizontalFusion:0",
     "CommonSubexpressionElimination:0",
+    "ReshapeElimination:0",
    ), ";"
 )
 
@@ -293,8 +294,14 @@ function extract(
     # Create parameters for the inputs
     parameters = nGraph.Node[]
     for i in 1:nGraph.get_input_size(node)
-        A = rand(nGraph.get_input_element_type(node, i), nGraph.get_input_shape(node, i)...)
-        push!(parameters, nGraph.parameter(A))
+        # Check if this input is a constant. If so - copy over the constant.
+        this_input = nGraph.get_input(node, i)
+        if isconstant(this_input)
+            push!(parameters, nGraph.copy(this_input, nGraph.NodeVector()))
+        else
+            A = rand(nGraph.get_input_element_type(node, i), nGraph.get_input_shape(node, i)...)
+            push!(parameters, nGraph.parameter(A))
+        end
     end
 
     # Insert layout conversion to match the mkldnn layouts in the original graph.
@@ -310,12 +317,15 @@ function extract(
     # Copy the node with the newly created parameters
     copied_nodes = [copy(node, links) for _ in 1:ncopies]
 
-    # Make sure we're using the same version of the node.
-    #
-    # TODO: Make sure this still works on the GPU path (is_mkldnn should always return false)
+    # Make sure we're using the same version of the node - will always return `false` if 
+    # compiling for the GPU backend.
     nGraph.is_mkldnn(node) && nGraph.set_mkldnn.(copied_nodes)
 
     # Compile the new function
+    #
+    # Now that we've created a copy of the new node, we need to filter out all of the input
+    # constants we provided so it compiles correctly.
+    filter!(!isconstant, parameters) 
     paramvector = nGraph.ParameterVector(parameters...)
 
     outputs = nGraph.Node[]
@@ -345,7 +355,6 @@ function extract(
         for op in fn
             # Line it up by description and input/output sizes.
             if params(backend, op) == params(backend, node)
-            #if CPUKernelParams(op) == CPUKernelParams(node)
                 push!(translated_nodes, op)
 
             # Handle Special Cases
@@ -359,7 +368,8 @@ function extract(
         if isempty(translated_nodes)
             for n in copied_nodes
                 println("Copied Node: $n")
-                println("    name: $(nGraph.name(n))")
+                println("    name:   $(nGraph.name(n))")
+                println("    config: $(config)")
             end
             error("Something done gone wrong!")
         end

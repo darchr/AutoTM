@@ -3,13 +3,15 @@
 #####
 
 # Small network for debugging and such
-test_vgg() = Vgg19(16)
+#test_vgg() = Vgg19(16)
 
 conventional_inception() = Inception_v4(1024)
 conventional_resnet() = Resnet200(512)
 conventional_vgg() = Vgg19(2048)
 conventional_densenet() = DenseNet(512)
 conventional_transformer() = Transformer(512, 200)
+
+test_vgg() = Vgg19(128)
 
 common_ratios() = [
     1 // 0,

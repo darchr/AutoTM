@@ -78,9 +78,9 @@ end
 #
 # This should cause the ngraph allocator to free up some space so we don't go over the
 # limit.
-function update(I::T, local_args, data::FunctionData) where {T <: ILPHolder}
+offenders(frame::Frame) = offenders(frame.modeltype, frame.profile_data)
+function offenders(I::ILPHolder, data::FunctionData, io_bytes = 0)
     dram_limits = I.dram_limits
-    io_bytes = isempty(local_args) ? 0 : sum(sizeof, local_args)
     ml = maxlimit(I)
 
     # Go through all of the live tensors - find the first that exceeds the limit
@@ -100,6 +100,16 @@ function update(I::T, local_args, data::FunctionData) where {T <: ILPHolder}
             end
         end
     end
+
+    return offending_tensors, worst
+end
+
+function update(I::T, local_args, data::FunctionData) where {T <: ILPHolder}
+    dram_limits = I.dram_limits
+    io_bytes = isempty(local_args) ? 0 : sum(sizeof, local_args)
+    ml = maxlimit(I)
+
+    offending_tensors, worst = offenders(I, data, io_bytes)
 
     decrease_amount = max(
         # Decrease by at most 2%
