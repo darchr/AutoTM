@@ -64,6 +64,9 @@ function exceeds_limit(f::nGraph.NFunction, I::ILPHolder, local_args)
     # Get the allocated bytes, including local arguments
     io_bytes = isempty(local_args) ? 0 : sum(sizeof, local_args)
     @info "IO Bytes: " io_bytes
+    @info "Lenght Local Args: " length(local_args)
+    @info "Temporary Pool Size: " convert(Int, nGraph.get_temporary_pool_size(f))
+
     alloc_bytes = io_bytes + nGraph.get_temporary_pool_size(f)
 
     # Convert to MB and compare to the maximum limit
@@ -111,9 +114,11 @@ function update(I::T, local_args, data::FunctionData) where {T <: ILPHolder}
 
     offending_tensors, worst = offenders(I, data, io_bytes)
 
+    @info "Allocation size: " worst
+
     decrease_amount = max(
-        # Decrease by at most 2%
-        0.98,
+        # Decrease by at most 1%
+        0.99,
         # If the overuse is small, just decrease by a tiny amount
         1 - ((worst / ml) - 1) / 2,
     )

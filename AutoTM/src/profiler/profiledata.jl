@@ -66,6 +66,7 @@ end
 Utils.isconstant(t::XTensor) = t.role == Constant
 isarg(t::XTensor) = t.role == Arg
 is_persistent(t::XTensor) = nGraph.is_persistent(unx(t))
+adduser!(t::XTensor, n) = !in(n, users(t)) && push!(t.users, n)
 
 users(t::XTensor) = t.users
 producer(t::XTensor) = first(t.users)
@@ -154,7 +155,7 @@ function FunctionData(fn::nGraph.NFunction, ::Type{T}) where {T}
             push!(tensors, xtensor)
 
             # Register the producing node as the first user
-            push!(xtensor.users, xnode)
+            adduser!(xtensor, xnode) 
 
             # Register the xtensor as an output of the xnode
             push!(xnode.outputs, xtensor)
@@ -166,7 +167,7 @@ function FunctionData(fn::nGraph.NFunction, ::Type{T}) where {T}
             xtensor = _get(tensors, tensor)
 
             # Register users and inputs
-            push!(xtensor.users, xnode)
+            adduser!(xtensor, xnode) 
             push!(xnode.inputs, xtensor)
         end
     end
@@ -190,17 +191,18 @@ end
 
 function liveness!(nodes::Vector{XNode}, tensors::Set{XTensor{XNode}})
     # forward pass
-    for op in nodes
+    for op in Iterators.filter(hasprofile, nodes)
         empty!(op.newlist)
         append!(op.newlist, filter(x -> !isarg(x) && !isconstant(x), outputs(op)))
     end
 
     # add all of the argument tensors to the liveness list for the first op
-    append!(first(nodes).newlist, filter(x -> isarg(x), tensors))
+    ind = findfirst(hasprofile, nodes)
+    append!(nodes[ind].newlist, filter(x -> isarg(x), tensors))
 
     # backward pass
     freed_tensors = Set{XTensor{XNode}}()
-    for op in reverse(nodes)
+    for op in Iterators.filter(hasprofile, reverse(nodes))
         empty!(op.freelist)
         for tensor in inputs(op)
             if !in(tensor, freed_tensors) && !isarg(tensor) && !isconstant(tensor)
