@@ -44,7 +44,7 @@ function XTensor(tensor::TensorDescriptor)
 
     # Add in tensors that may also live in PMEM
     xtensor = XTensor(tensor, XNode[], role(tensor), sizeof(tensor), locations)
-    if !isconstant(xtensor)# && !isarg(xtensor)
+    if !isconstant(xtensor)
         push!(xtensor.locations, PMEM)
     end
     return xtensor
@@ -155,7 +155,7 @@ function FunctionData(fn::nGraph.NFunction, ::Type{T}) where {T}
             push!(tensors, xtensor)
 
             # Register the producing node as the first user
-            adduser!(xtensor, xnode) 
+            adduser!(xtensor, xnode)
 
             # Register the xtensor as an output of the xnode
             push!(xnode.outputs, xtensor)
@@ -167,7 +167,7 @@ function FunctionData(fn::nGraph.NFunction, ::Type{T}) where {T}
             xtensor = _get(tensors, tensor)
 
             # Register users and inputs
-            adduser!(xtensor, xnode) 
+            adduser!(xtensor, xnode)
             push!(xnode.inputs, xtensor)
         end
     end
@@ -191,7 +191,7 @@ end
 
 function liveness!(nodes::Vector{XNode}, tensors::Set{XTensor{XNode}})
     # forward pass
-    for op in Iterators.filter(hasprofile, nodes)
+    for op in nodes
         empty!(op.newlist)
         append!(op.newlist, filter(x -> !isarg(x) && !isconstant(x), outputs(op)))
     end
@@ -202,7 +202,7 @@ function liveness!(nodes::Vector{XNode}, tensors::Set{XTensor{XNode}})
 
     # backward pass
     freed_tensors = Set{XTensor{XNode}}()
-    for op in Iterators.filter(hasprofile, reverse(nodes))
+    for op in reverse(nodes)
         empty!(op.freelist)
         for tensor in inputs(op)
             if !in(tensor, freed_tensors) && !isarg(tensor) && !isconstant(tensor)
@@ -211,27 +211,32 @@ function liveness!(nodes::Vector{XNode}, tensors::Set{XTensor{XNode}})
             end
         end
     end
+    ind = findlast(hasprofile, nodes)
+    append!(nodes[ind].freelist, filter(x -> isarg(x), tensors))
 
     # Now, we need to do a cleanup phase.
     #
     # The BatchNorm pass can mess up some aspects of outputs from liveness analysis.
     # Here, we check to see if any tensor shows up in the new list but not the free list.
-    # If so, we sets its free point to the place where it was created.
+    # If so, we set its free point to the place where it was created.
     #
     # I hate batchnorm
-    tensor_start = Dict{XTensor, Int}()
-    for (index, op) in enumerate(nodes), tensor in op.newlist
-        tensor_start[tensor] = index
-    end
+    #
+    # TODO: Fix this because it's harming liveness analysis for arguments.
 
-    for op in nodes, tensor in op.freelist
-        @assert haskey(tensor_start, tensor)
-        delete!(tensor_start, tensor)
-    end
+    # tensor_start = Dict{XTensor, Int}()
+    # for (index, op) in enumerate(nodes), tensor in op.newlist
+    #     tensor_start[tensor] = index
+    # end
 
-    for (tensor, index) in tensor_start
-        push!(nodes[index].freelist, tensor)
-    end
+    # for op in nodes, tensor in op.freelist
+    #     @assert haskey(tensor_start, tensor)
+    #     delete!(tensor_start, tensor)
+    # end
+
+    # for (tensor, index) in tensor_start
+    #     push!(nodes[index].freelist, tensor)
+    # end
 
     return nothing
 end
@@ -297,7 +302,7 @@ function possible_configs(data::FunctionData{T}) where {T}
         hasprofile(node) || continue
 
         # Get possible configs based on backend type
-        pc = possible_configs(node, T) 
+        pc = possible_configs(node, T)
         for config in pc
             push!(configs, (node, config))
         end
@@ -307,7 +312,7 @@ end
 
 function possible_configs(node::XNode, ::Type{T}) where {T}
     config_inputs, config_outputs = _configsfor(node, T)
-    return map(x -> IOConfig(x...), 
+    return map(x -> IOConfig(x...),
         Iterators.product(
             Iterators.product(config_inputs...),
             Iterators.product(config_outputs...),

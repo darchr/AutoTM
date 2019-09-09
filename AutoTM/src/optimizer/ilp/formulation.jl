@@ -133,7 +133,7 @@ function update(I::T, local_args, data::FunctionData) where {T <: ILPHolder}
         end
     end
 
-    radius = 5
+    radius = 3
     # Expand indices around the radius
     indices = Iterators.flatten([(idx - radius):(idx + radius) for idx in unique(indices)]) |>
         collect |>
@@ -361,6 +361,17 @@ function _getgadgets(::ILPHolder{IsSynchronous}, data::FunctionData, t::XTensor)
     nt = [
         (node = u, move_type = isone(i) ? MOVE_NONE : MOVE_SYNC) for (i,u) in enumerate(users(t))
     ]
+
+    # If this tensor `isarg`, then since it is live for the entire function, we need to 
+    # insert node references for all nodes pointing to the producer.
+    if isarg(t)
+        ref = producer(t)
+        for node in nodes(data)
+            # Shortcut here, `get!` will lookup and automatically insert the mapping if it
+            # doesn't exist.
+            get!(reference_map, node, ref)
+        end
+    end
 
     return nt, reference_map
 end
@@ -788,7 +799,7 @@ end
 # edge of the correct DRAM -> DRAM node to see if the tensor just lives around in DRAM.
 function get_tensor_in_dram(F::Frame, tensor::XTensor, node::XNode)
     desc = descriptor(F, tensor)
-    if in(node, users(desc))
+    if in(node, users(desc))# || isarg(tensor)
         return F.model[:tensor_in_dram][tensor, nGraph.name(node)]
     else
         return F.model[:tensor_in_dram_post][tensor, nGraph.name(get_reference(desc, node))]
