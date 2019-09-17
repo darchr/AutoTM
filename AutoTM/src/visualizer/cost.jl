@@ -1,8 +1,13 @@
 """
 `pairs`: Vector of Pairs, first element is a model, second element is a formulation string.
 """
-function pgf_cost(pairs::Vector{<:Pair}, ratios::Vector{<:Rational}, cache;
+function pgf_cost(
+        pairs::Vector{<:Pair}, 
+        ratios::Vector{<:Rational}, 
+        cache;
+        # Can either define cost_ratio or the costs of PMM and DRAM separately
         cost_ratio = 2.1,
+        # location of output file - if `nothing`, no file will be emitted
         file = "plot.tex",
     )
 
@@ -112,7 +117,7 @@ function pgf_cost(pairs::Vector{<:Pair}, ratios::Vector{<:Rational}, cache;
     push!(tikz, axs)
     push!(plt, tikz)
 
-    pgfsave(file, plt)
-    return nothing
+    !isnothing(file) && pgfsave(file, plt)
+    return plt
 end
 

@@ -34,18 +34,32 @@ struct XTensor{T}
     tensor::TensorDescriptor
     users::Vector{T}
     role::TensorRole
+    fixed_at::Union{Nothing,TensorLocation}     
     size::Int
     locations::Vector{TensorLocation}
 end
+isfixed(x::XTensor) = !isnothing(x.fixed_at)
+fixed_location(x::XTensor) = something(x.fixed_at)
 
-function XTensor(tensor::TensorDescriptor)
-    # Be default, everything can live in DRAM
-    locations = [DRAM]
-
+function XTensor(tensor::TensorDescriptor, fixed = nothing)
     # Add in tensors that may also live in PMEM
-    xtensor = XTensor(tensor, XNode[], role(tensor), sizeof(tensor), locations)
-    if !isconstant(xtensor)
-        push!(xtensor.locations, PMEM)
+    xtensor = XTensor(
+        tensor, 
+        XNode[], 
+        role(tensor), 
+        fixed_location, 
+        sizeof(tensor), 
+        TensorLocation[]
+    )
+
+    # Check if this tensor is fixed at a location. If so - just append that location
+    if isfixed(xtensor) 
+        push!(xtensor.locations, fixed)
+    else
+        push!(xtensor.locations, DRAM)
+        if !isconstant(xtensor)
+            push!(xtensor.locations, PMEM)
+        end
     end
     return xtensor
 end

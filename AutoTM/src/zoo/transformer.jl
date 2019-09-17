@@ -155,6 +155,7 @@ struct Transformer
     encoder::Encoder
     decoder::Decoder
     embedding
+    vocab_size::Int
 end
 
 function Transformer(N::Integer, dmodel::Integer, dff::Integer, h::Integer, vocab, seqlen)
@@ -163,7 +164,7 @@ function Transformer(N::Integer, dmodel::Integer, dff::Integer, h::Integer, voca
 
     encoder = Encoder(N, dmodel, dff, h)
     decoder = Decoder(N, dmodel, dff, h)
-    return Transformer(encoder, decoder, embedding)
+    return Transformer(encoder, decoder, embedding, vocab)
 end
 
 function (T::Transformer)(inputs, outputs, target)
@@ -182,7 +183,7 @@ function (T::Transformer)(inputs, outputs, target)
     y = transpose(y)
 
     # Generate a loss
-    return Flux.crossentropy(reshape(y, :), reshape(target, :))
+    return Flux.crossentropy(reshape(y, :), reshape(nGraph.onehot(target, T.vocab_size, 3), :))
 end
 
 function transformer_training(batchsize = 16, seq_length = 50)
@@ -205,9 +206,8 @@ function transformer_training(batchsize = 16, seq_length = 50)
     #Y = nGraph.Node(randn(Float32, dmodel, seq_length, batchsize))
     X = nGraph.Node(rand(selection, seq_length, batchsize))
     Y = nGraph.Node(rand(selection, seq_length, batchsize))
-    expected = randn(Float32, vocab, seq_length, batchsize)
-    #random_labels!(expected)
-    expected = nGraph.Node(expected)
+    #expected = randn(Float32, vocab, seq_length, batchsize)
+    expected = nGraph.Node(rand(selection, seq_length, batchsize))
 
     T = Transformer(N, dmodel, dff, h, vocab, seq_length)
 
