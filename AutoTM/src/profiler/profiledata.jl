@@ -223,20 +223,19 @@ function liveness!(nodes::Vector{XNode}, tensors::Set{XTensor{XNode}})
     # I hate batchnorm
     #
     # TODO: Fix this because it's harming liveness analysis for arguments.
+    tensor_start = Dict{XTensor, Int}()
+    for (index, op) in enumerate(nodes), tensor in op.newlist
+        tensor_start[tensor] = index
+    end
 
-    # tensor_start = Dict{XTensor, Int}()
-    # for (index, op) in enumerate(nodes), tensor in op.newlist
-    #     tensor_start[tensor] = index
-    # end
+    for op in nodes, tensor in op.freelist
+        @assert haskey(tensor_start, tensor)
+        delete!(tensor_start, tensor)
+    end
 
-    # for op in nodes, tensor in op.freelist
-    #     @assert haskey(tensor_start, tensor)
-    #     delete!(tensor_start, tensor)
-    # end
-
-    # for (tensor, index) in tensor_start
-    #     push!(nodes[index].freelist, tensor)
-    # end
+    for (tensor, index) in tensor_start
+        isarg(tensor) || push!(nodes[index].freelist, tensor)
+    end
 
     return nothing
 end

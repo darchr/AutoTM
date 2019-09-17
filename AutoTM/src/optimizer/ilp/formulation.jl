@@ -362,17 +362,6 @@ function _getgadgets(::ILPHolder{IsSynchronous}, data::FunctionData, t::XTensor)
         (node = u, move_type = isone(i) ? MOVE_NONE : MOVE_SYNC) for (i,u) in enumerate(users(t))
     ]
 
-    # If this tensor `isarg`, then since it is live for the entire function, we need to 
-    # insert node references for all nodes pointing to the producer.
-    if isarg(t)
-        ref = producer(t)
-        for node in nodes(data)
-            # Shortcut here, `get!` will lookup and automatically insert the mapping if it
-            # doesn't exist.
-            get!(reference_map, node, ref)
-        end
-    end
-
     return nt, reference_map
 end
 
@@ -386,6 +375,24 @@ function _getgadgets(::ILPHolder{IsFixed}, data::FunctionData, t::XTensor)
     end
 
     return [(node = producer, move_type = MOVE_NONE)], reference_map
+end
+
+function getgadgets(x, data::FunctionData, t::XTensor)
+    refs, reference_map = _getgadgets(x, data, t)
+    # Update with argument
+    
+    # If this tensor `isarg`, then since it is live for the entire function, we need to 
+    # insert node references for all nodes pointing to the producer.
+    if isarg(t)
+        ref = producer(t)
+        for node in nodes(data)
+            # Shortcut here, `get!` will lookup and automatically insert the mapping if it
+            # doesn't exist.
+            get!(reference_map, node, ref)
+        end
+    end
+
+    return refs, reference_map
 end
 
 # TODO: When can't do anything because exhausted, make ASCII art for what's going on with
@@ -457,11 +464,11 @@ function preprocess!(S::ILPHolder, data::FunctionData)
      for tensor in tensors(data)
 
         # Get the users of this node
-        # Get two things from _getgadgets:
+        # Get two things from getgadgets:
         #
         # 1. A named tuple (node::XNode, move_type::MoveType)
         # 2. A dictionary implementing the `ref` function.
-        gadgets, reference_map = _getgadgets(S, data, tensor)
+        gadgets, reference_map = getgadgets(S, data, tensor)
 
         @assert !isempty(gadgets)
 
@@ -798,6 +805,8 @@ end
 # If we're on an op where a tensor is LIVE but not READ, we need to check the outgoing
 # edge of the correct DRAM -> DRAM node to see if the tensor just lives around in DRAM.
 function get_tensor_in_dram(F::Frame, tensor::XTensor, node::XNode)
+    #@show nGraph.name(tensor)
+    #@show nGraph.name(node)
     desc = descriptor(F, tensor)
     if in(node, users(desc))# || isarg(tensor)
         return F.model[:tensor_in_dram][tensor, nGraph.name(node)]

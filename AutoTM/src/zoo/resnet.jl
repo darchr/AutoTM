@@ -128,7 +128,7 @@ function _resnet(version::AbstractResnet)
     end
 end
 
-function resnet_training(version::T, batchsize = 16; backend = nGraph.Backend(), kw...) where {T <: AbstractResnet}
+function resnet_training(version::T, batchsize = 16; kw...) where {T <: AbstractResnet}
     Random.seed!(123455)
     X = rand(Float32, 224, 224, 3, batchsize)
     Y = rand(Float32, 1000, batchsize)
@@ -138,8 +138,9 @@ function resnet_training(version::T, batchsize = 16; backend = nGraph.Backend(),
     return g, (X, Y), kw
 end
 
-function resnet_inference(version::T, batchsize = 16; backend = nGraph.Backend()) where {T <: AbstractResnet}
-    X = nGraph.Tensor(backend, rand(Float32, 224, 224, 3, batchsize))
-    f = nGraph.compile(_resnet(version), X)
-    return f, (X,)
+function resnet_inference(version::T, batchsize = 16) where {T <: AbstractResnet}
+    X = rand(Float32, 224, 224, 3, batchsize)
+    f = x -> _resnet(version)(x)
+    kw = NamedTuple()
+    return f, (X,), kw
 end

@@ -1,5 +1,5 @@
 # Scaled dot-product attention function
-function scaled_dot_product_attention(q, k, v) 
+function scaled_dot_product_attention(q, k, v)
     x = nGraph.bmm(q, k; transpose_b = true)
     x = x ./ size(k, 1)
     x = Flux.softmax(x)
@@ -12,7 +12,7 @@ end
 # Arguments `wq`, `wk`, and `wv` vectors of projection matrices
 function multi_head_attention(q, k, v, wq, wk, wv, wo)
     heads = map(zip(wq, wk, wv)) do x
-        # Do a broadcast operation 
+        # Do a broadcast operation
         return scaled_dot_product_attention(x[1] * q, x[2] * k, x[3] * v)
     end
 
@@ -124,9 +124,9 @@ function Decoder(N::Integer, dmodel::Integer, dff::Integer, h::Integer)
     fwd_normalize = [Normalize(dmodel) for _ in 1:N]
 
     return Decoder(
-        first_attentions, 
+        first_attentions,
         first_normalize,
-        second_attentions, 
+        second_attentions,
         second_normalize,
         forwards,
         fwd_normalize
@@ -135,9 +135,9 @@ end
 
 function (D::Decoder)(x, hidden)
     iter = zip(
-        D.first_attentions, 
+        D.first_attentions,
         D.first_normalize,
-        D.second_attentions, 
+        D.second_attentions,
         D.second_normalize,
         D.forwards,
         D.fwd_normalize
@@ -154,28 +154,38 @@ end
 struct Transformer
     encoder::Encoder
     decoder::Decoder
-    dense::Flux.Dense
+    embedding
 end
 
 function Transformer(N::Integer, dmodel::Integer, dff::Integer, h::Integer, vocab, seqlen)
+    hidden_size = dmodel * seqlen
+    embedding = Flux.param(randn(Float32, dmodel, vocab))
+
     encoder = Encoder(N, dmodel, dff, h)
     decoder = Decoder(N, dmodel, dff, h)
-    dense = Flux.Dense(dmodel * seqlen, vocab)
-    return Transformer(encoder, decoder, dense)
+    return Transformer(encoder, decoder, embedding)
 end
 
 function (T::Transformer)(inputs, outputs, target)
-    hidden = T.encoder(inputs)
-    y = T.decoder(outputs, hidden)
+    embedding_node = nGraph.Node(T.embedding)
+
+    # Do the embedding table lookup
+    lookup_inputs = nGraph.embedding(inputs, embedding_node)
+    lookup_outputs = nGraph.embedding(outputs, embedding_node)
+
+    hidden = T.encoder(lookup_inputs)
+    y = T.decoder(lookup_outputs, hidden)
     # Reshape the first two dimensions into one dimension
-    y = reshape(y, :, size(y, 3))
-    y = Flux.softmax(T.dense(y))
+    #y = transpose(reshape(y, :, size(y, 3)))
+    y = transpose(y)
+    y = y * embedding_node
+    y = transpose(y)
 
     # Generate a loss
-    return Flux.crossentropy(y, target)
+    return Flux.crossentropy(reshape(y, :), reshape(target, :))
 end
 
-function transformer_training(batchsize = 16, seq_length = 50; backend = nGraph.Backend())
+function transformer_training(batchsize = 16, seq_length = 50)
     # Parameters from the Transformer Paper
 
     # Number of Stacked Layers
@@ -183,21 +193,24 @@ function transformer_training(batchsize = 16, seq_length = 50; backend = nGraph.
     # Size of the first tensor dimension
     dmodel = 512
     # Hidden size for the feed forward networks
-    dff = 2048 
+    dff = 2048
     # Number of shards for the attention layers
     h = 8
     # Output vocab size
-    vocab = 25000 
+    vocab = 20000
 
     # Create inputs, outputs, and expected output layers
-    X = nGraph.Node(randn(Float32, dmodel, seq_length, batchsize))
-    Y = nGraph.Node(randn(Float32, dmodel, seq_length, batchsize))
-    expected = randn(Float32, vocab, batchsize)
-    random_labels!(expected)
+    selection = Int32(1):Int32(vocab)
+    #X = nGraph.Node(randn(Int32, dmodel, seq_length, batchsize))
+    #Y = nGraph.Node(randn(Float32, dmodel, seq_length, batchsize))
+    X = nGraph.Node(rand(selection, seq_length, batchsize))
+    Y = nGraph.Node(rand(selection, seq_length, batchsize))
+    expected = randn(Float32, vocab, seq_length, batchsize)
+    #random_labels!(expected)
     expected = nGraph.Node(expected)
 
     T = Transformer(N, dmodel, dff, h, vocab, seq_length)
-    
+
     kw = (optimizer = nGraph.SGD(Float32(0.001)),)
     return T, (X, Y, expected), kw
 end

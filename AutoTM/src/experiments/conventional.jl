@@ -9,7 +9,7 @@ conventional_inception() = Inception_v4(1024)
 conventional_resnet() = Resnet200(512)
 conventional_vgg() = Vgg19(2048)
 conventional_densenet() = DenseNet(512)
-conventional_transformer() = Transformer(512, 200)
+conventional_transformer() = Transformer(512, 150)
 
 test_vgg() = Vgg19(16)
 
