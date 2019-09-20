@@ -59,21 +59,23 @@ function (M::Synchronous{Rational{Int}})(data, backend::nGraph.Backend)
         round(Int, (bounds.upper_bound / (getratio(M) + 1)) / 1E6), size(nodes(data))
     )
     println("Trying to use $(maximum(x)) MB of memory")
-    return synchronous(x,
-                              _bw_remote_local_sync(backend),
-                              _bw_local_remote_sync(backend);
-                              defrag = !iszero(_numerator(M))
-                             )
+    return synchronous(
+        x,
+        _bw_remote_local_sync(backend),
+        _bw_local_remote_sync(backend);
+        defrag = !iszero(_numerator(M))
+    )
 end
 
 function (M::Synchronous{Int})(data, backend::nGraph.Backend)
     x = fill(round(Int, getlimit(M) / 1E6), size(nodes(data)))
     println("Trying to use $(maximum(x)) MB of memory")
-    return synchronous(x,
-                              _bw_remote_local_sync(backend),
-                              _bw_local_remote_sync(backend);
-                              defrag = !iszero(_numerator(M))
-                             )
+    return synchronous(
+        x,
+        _bw_remote_local_sync(backend),
+        _bw_local_remote_sync(backend);
+        defrag = !iszero(_numerator(M))
+    )
 end
 
 
@@ -90,25 +92,27 @@ function (M::Asynchronous{Rational{Int}})(data, backend::nGraph.Backend)
     bounds = Profiler.allocation_bounds(data)
     x = fill(round(Int, (bounds.upper_bound / (getratio(M) + 1)) / 1E6), size(nodes(data)))
     println("Trying to use $(maximum(x)) MB of memory")
-    return asynchronous(x,
-                              _bw_remote_local_sync(backend),
-                              _bw_local_remote_sync(backend),
-                              _bw_remote_local_async(backend),
-                              _bw_local_remote_async(backend);
-                              defrag = !iszero(_numerator(M))
-                              )
+    return asynchronous(
+        x,
+        _bw_remote_local_sync(backend),
+        _bw_local_remote_sync(backend),
+        _bw_remote_local_async(backend),
+        _bw_local_remote_async(backend);
+        defrag = !iszero(_numerator(M))
+    )
 end
 
 function (M::Asynchronous{Int})(data, backend::nGraph.Backend)
     x = fill(round(Int, getlimit(M) / 1E6), size(nodes(data)))
     println("Trying to use $(maximum(x)) MB of memory")
-    return asynchronous(x, 
-                              _bw_remote_local_sync(backend),
-                              _bw_local_remote_sync(backend),
-                              _bw_remote_local_async(backend),
-                              _bw_local_remote_async(backend);
-                              defrag = !iszero(_numerator(M))
-                             )
+    return asynchronous(
+        x, 
+        _bw_remote_local_sync(backend),
+        _bw_local_remote_sync(backend),
+        _bw_remote_local_async(backend),
+        _bw_local_remote_async(backend);
+        defrag = !iszero(_numerator(M))
+     )
 end
 
 #####

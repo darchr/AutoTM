@@ -9,6 +9,9 @@
 # We then create a variable that is "active" when a tensor changes location from DRAM
 # to PMEM. These variables will add time to the objective function
 
+# Scaling for numerical stability
+scale(x) = x / 10000
+
 get_reference(S::TensorMeta, node::XNode) = S.reference_map[node]
 graph(S::TensorMeta) = S.graph
 Profiler.users(S::TensorMeta) = S.users
@@ -127,7 +130,7 @@ rba(I::ILPHolder) = I.read_bandwidth_async
 wba(I::ILPHolder) = I.write_bandwidth_async
 
 static(dram_limits; defrag = false) = ILPHolder{IsFixed}(
-    dram_limits,
+    dram_limits,# / 1E3,
     Dict{XTensor{XNode}, TensorMeta}(),
     Dict{XNode, Vector{JuMP.VariableRef}}(),
     Dict{String, Int}(),
@@ -136,7 +139,7 @@ static(dram_limits; defrag = false) = ILPHolder{IsFixed}(
 )
 
 synchronous(dram_limits, a, b; defrag = false) = ILPHolder{IsSynchronous}(
-    dram_limits,
+    dram_limits,# / 1E3,
     Dict{XTensor{XNode}, TensorMeta}(),
     Dict{XNode, Vector{JuMP.VariableRef}}(),
     Dict{String, Int}(),
@@ -145,7 +148,7 @@ synchronous(dram_limits, a, b; defrag = false) = ILPHolder{IsSynchronous}(
 )
 
 asynchronous(dram_limits,a,b,c,d; defrag = false) = ILPHolder{IsAsynchronous}(
-    dram_limits,
+    dram_limits,# / 1E3,
     Dict{XTensor{XNode}, TensorMeta}(),
     Dict{XNode, Vector{JuMP.VariableRef}}(),
     Dict{String, Int}(),
@@ -387,10 +390,10 @@ function add_movement_formulations!(frame::Frame)
         bytes = sizeof(tensor)
 
         # Take the ceiling of all these to ensure there's always a cost to moving.
-        read_cost = ceil(Int, bytes / rb(modeltype))
-        write_cost = ceil(Int, bytes / wb(modeltype))
-        read_cost_async = ceil(Int, bytes / rba(modeltype))
-        write_cost_async = ceil(Int, bytes / wba(modeltype))
+        read_cost        = scale(ceil(Int, bytes / rb(modeltype)))
+        write_cost       = scale(ceil(Int, bytes / wb(modeltype)))
+        read_cost_async  = scale(ceil(Int, bytes / rba(modeltype)))
+        write_cost_async = scale(ceil(Int, bytes / wba(modeltype)))
 
         # Collect Edges according to type.
         sync_reads = _find_edges(g, EDGE_SYNC_READ)
@@ -582,11 +585,11 @@ function add_nodes!(F::Frame)
                     @constraint(F.model, v[enum] <= vars[config])
                     @constraint(F.model, v[enum] + 1 >= vars[config] + algo_var[node, enum])
 
-                    coeff = ceil(Int64, Profiler.timeat(gettime(node, config), enum))
+                    coeff = scale(ceil(Int64, Profiler.timeat(gettime(node, config), enum)))
                     add_to_expression!(node_times, coeff, v[enum])
                 end
             else
-                coeff = ceil(Int64, gettime(node, config))
+                coeff = scale(ceil(Int64, gettime(node, config)))
                 add_to_expression!(node_times, coeff, vars[config])
             end
         end
