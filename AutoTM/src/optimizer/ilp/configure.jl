@@ -22,17 +22,22 @@ function configure!(f::nGraph.NFunction, frame::Frame)
 
     # Sanity check to make sure returned `paths` are only empty if the tensor is a
     # function argument
-    for (t, (tensor_graph, path)) in initial_schedule 
-        if isempty(path)
-            @assert isarg(t)
-        end
-    end
+    #for (t, (tensor_graph, path)) in initial_schedule 
+    #    if isempty(path)
+    #        @assert isarg(t)
+    #    end
+    #end
 
     # Convert this into an appropriate format for the inner `configure!`
     schedule = Dict(
         t => (_initial_loc(path), getactions(tensor_graph, path))
         for (t, (tensor_graph, path)) in initial_schedule
     )
+
+    # Add in the fixed tensors - which 
+    for t in fixed_tensors(frame)  
+        schedule[t] = (first(locations(t)), MoveAction[])
+    end
 
     # TODO: Move this into the innermost `configure!`
     data = frame.profile_data
@@ -73,7 +78,7 @@ function get_schedule(F::Frame)
 
     schedule = Dict{XTensor{XNode}, Tuple{MetaGraph, Vector{VertexMetadata}}}()
 
-    for tensor in tensors(data)
+    for tensor in free_tensors(F)
         g = graph(descriptor(F, tensor))
 
         # Trace the route taken through the graph

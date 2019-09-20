@@ -111,7 +111,53 @@ function (M::Asynchronous{Int})(data, backend::nGraph.Backend)
                              )
 end
 
+#####
+##### Model Types
+#####
+
+struct TensorMeta
+    graph::MetaGraph
+
+    # Nodes using this tensor
+    users::Vector{XNode}
+
+    # Look-up a node wrapper, get the node that serves as a reference for this
+    reference_map::Dict{XNode, XNode}
+
+    # Flag to indicate that this is a fixed tensor - can decrease variable generation.
+    isfixed::Bool 
+end
+
+# Singleton types for dispatching to different formulations
+abstract type ILPFormulationType end
+struct IsFixed <: ILPFormulationType end
+struct IsSynchronous <: ILPFormulationType end
+struct IsAsynchronous <: ILPFormulationType end
+
+mutable struct ILPHolder{T <: ILPFormulationType}
+    dram_limits::Vector{Int}
+
+    descriptors::Dict{XTensor{XNode}, TensorMeta}
+    async_move_vars::Dict{XNode, Vector{JuMP.VariableRef}}
+
+    # Need to key this with string names instead of XNode because of recompiling the ngraph
+    # function and reporifling.
+    #
+    # New XNodes get created that don't hash the same as the old ones.
+    node_to_limit_index::Dict{String, Int}
+
+    # Bandwidths
+    read_bandwidth::Int64
+    write_bandwidth::Int64
+    read_bandwidth_async::Int64
+    write_bandwidth_async::Int64
+
+    # Flag to determine if we need to defrag
+    defrag::Bool
+end
+
 # Implementations
+include("tensor_graphs.jl")
 include("formulation.jl")
 include("configure.jl")
 include("inspect.jl")

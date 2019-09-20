@@ -170,6 +170,9 @@ end
 function (T::Transformer)(inputs, outputs, target)
     embedding_node = nGraph.Node(T.embedding)
 
+    # Tell the Julia-to-nGraph converter to setup the embedding table as an inplace op.
+    nGraph.__inplace(T.embedding)
+
     # Do the embedding table lookup
     lookup_inputs = nGraph.embedding(inputs, embedding_node)
     lookup_outputs = nGraph.embedding(outputs, embedding_node)

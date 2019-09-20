@@ -41,20 +41,20 @@ end
 isfixed(x::XTensor) = !isnothing(x.fixed_at)
 fixed_location(x::XTensor) = something(x.fixed_at)
 
-function XTensor(tensor::TensorDescriptor, fixed = nothing)
+function XTensor(tensor::TensorDescriptor, fixed_at = nothing)
     # Add in tensors that may also live in PMEM
     xtensor = XTensor(
         tensor, 
         XNode[], 
         role(tensor), 
-        fixed_location, 
+        fixed_at, 
         sizeof(tensor), 
         TensorLocation[]
     )
 
     # Check if this tensor is fixed at a location. If so - just append that location
     if isfixed(xtensor) 
-        push!(xtensor.locations, fixed)
+        push!(xtensor.locations, fixed_at)
     else
         push!(xtensor.locations, DRAM)
         if !isconstant(xtensor)
@@ -77,7 +77,7 @@ function role(tensor::TensorDescriptor)
     return role
 end
 
-Utils.isconstant(t::XTensor) = t.role == Constant
+Utils.isconstant(t::XTensor) = (t.role == Constant)
 isarg(t::XTensor) = t.role == Arg
 is_persistent(t::XTensor) = nGraph.is_persistent(unx(t))
 adduser!(t::XTensor, n) = !in(n, users(t)) && push!(t.users, n)
@@ -165,7 +165,11 @@ function FunctionData(fn::nGraph.NFunction, ::Type{T}) where {T}
 
         for tensor in outputs(op)
             # Create an XTensor from this output.
-            xtensor = XTensor(tensor)
+            if isparam(op) || isresult(op) 
+                xtensor = XTensor(tensor, PMEM)
+            else
+                xtensor = XTensor(tensor)
+            end
             push!(tensors, xtensor)
 
             # Register the producing node as the first user
