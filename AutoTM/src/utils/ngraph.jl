@@ -38,7 +38,7 @@ end
 #####
 ##### General helpers
 #####
-hasprofile(op_description::String) = !in(op_description, ("Parameter", "Constant", "Result", "Move", "MoveAsync"))
+hasprofile(op_description::String) = !in(op_description, ("Parameter", "Constant", "Move", "MoveAsync"))
 hasprofile(op::nGraph.Node) = hasprofile(nGraph.description(op))
 hasprofile(x::NodeDescriptor) = hasprofile(nGraph.description(x))
 

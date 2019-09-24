@@ -74,9 +74,6 @@ end
 #####
 
 function configure!(fn::nGraph.NFunction, schedule, data)
-    # Unpack args
-    _cleanup!(fn)
-
     # Get the locations of the tensors currently in the graph
     #
     # NOTE: Leave this as TensorDescriptor since it will ultimately be used for ngraphj

@@ -36,7 +36,7 @@ Keyword Arguments
     must implement the function `save`.
 """
 profile(fex::nGraph.FluxExecutable; kw...) =
-    profile(fex.ex.ngraph_function, fex.ex.backend; kw...)
+    profile(fex.ex.ngraph_function, fex.ex.backend; fex = fex, kw...)
 
 function profile(
         f::nGraph.NFunction, 
@@ -44,7 +44,7 @@ function profile(
         cache = nothing,
         # Force re-profiling
         recache = false,
-        kernel_tiling = 1,
+        fex = nothing,
     ) where {T}
 
     isnothing(cache) && error("Need to define a cache")
@@ -53,6 +53,9 @@ function profile(
     # structures and metadata on the Julia level.
     data = FunctionData(f, T)
     handle_algo_selection!(cache, backend, data)
+    
+    # Handle inplace and pair-wise parameters
+    merge_tensors!(data, fex)
 
     # Get all the configurations we are interested in for this run.
     # Need to make a MOVE node in order to control IO configurations.
@@ -139,10 +142,9 @@ function profile(
             # to reduce interference with other extractions.
             GC.gc()
             ex, inputs, outputs, copied_ops = extract(
-                nGraph.Node(unx(node)),
+                node,
                 backend,
                 config;
-                ncopies = kernel_tiling,
             )
             GC.gc()
 
@@ -166,6 +168,15 @@ function profile(
     enable_passes()
 
     return data
+end
+
+#####
+##### merge_tensors
+#####
+
+merge_tensors!(data, ::Nothing) = nothing
+function merge_tensors!(data, fex::nGraph.FluxExecutable)
+
 end
 
 #####
@@ -216,20 +227,6 @@ function handle_algo_selection!(cache, backend::nGraph.Backend{nGraph.GPU}, data
                     AlgorithmPerf(e, 1000 * t, b) for (e,t,b) in zip(enums, times, bytes)
                 ]
 
-                # NOTE: At one point, I was checking to make sure that we caught all 
-                # allocation failures.
-                #
-                # However, it turned out that the majority of failures happened regardless 
-                # of whether we were in a new session or not, so catching these failures
-                # didn't really do much.
-                #
-                # I should probably remove this code.
-                #
-                # !allow_alloc_fail && alloc_failed && throw(error("""
-                #     Not enough memory cleaned up to sufficiently profile everything.
-                #     Restart the process and try again.
-                #     """))
-
                 cache[(kernel_params, config)] = algo_list
                 save(cache)
             end
@@ -276,74 +273,34 @@ function record_time!(
 end
 
 """
-    extract(node::nGraph.Node, backend::nGraph.Backend{nGraph.CPU}, config; ncopies = 1)
+    extract(node::nGraph.Node, backend::nGraph.Backend{nGraph.CPU}, config)
 
 Create a `nGraph.Executable` with a copy of `node` using the same input and output
 parameters. `Move` nodes will be inserted at all inputs and outputs of the copied node
 if the inputs come from executable arguments and if the outputs go directly to results.
-
-To try to capture some caching information, the node will be replicated `ncopies` times
-in the returned executable.
 """
 function extract(
-        node::nGraph.Node,
+        xnode::XNode
         backend::nGraph.Backend,
         @nospecialize(config::IOConfig);
-        ncopies = 1
     )
-    # Create parameters for the inputs
-    parameters = nGraph.Node[]
-    for i in 1:nGraph.get_input_size(node)
-        # Check if this input is a constant. If so - copy over the constant.
-        this_input = nGraph.get_input(node, i)
-        if isconstant(this_input)
-            push!(parameters, nGraph.copy(this_input, nGraph.NodeVector()))
-        else
-            A = rand(nGraph.get_input_element_type(node, i), nGraph.get_input_shape(node, i)...)
-            push!(parameters, nGraph.parameter(A))
-        end
+
+    # Manually dispatch some cases.
+    if isresult(node) 
+        parameters, outputs = _extract_result(xnode)
+    else
+        parameters, outputs = _extract_general(xnode)
     end
 
-    # Insert layout conversion to match the mkldnn layouts in the original graph.
-    links = nGraph.Node[]
-    for i in 1:nGraph.get_input_size(node)
-        if nGraph.input_needs_conversion(node, i)
-            push!(links, nGraph.convert_layout_to(parameters[i], node, i))
-        else
-            push!(links, parameters[i])
-        end
-    end
-
-    # Copy the node with the newly created parameters
-    copied_nodes = [copy(node, links) for _ in 1:ncopies]
-
-    # Make sure we're using the same version of the node - will always return `false` if 
-    # compiling for the GPU backend.
-    nGraph.is_mkldnn(node) && nGraph.set_mkldnn.(copied_nodes)
-
-    # Compile the new function
-    #
-    # Now that we've created a copy of the new node, we need to filter out all of the input
-    # constants we provided so it compiles correctly.
-    filter!(!isconstant, parameters) 
-    paramvector = nGraph.ParameterVector(parameters...)
-
-    outputs = nGraph.Node[]
-    for copied_node in copied_nodes
-        if nGraph.get_output_size(copied_node) > 1
-            for i in 1:nGraph.get_output_size(copied_node)
-                push!(outputs, nGraph.get_output_element(copied_node, i))
-            end
-        else
-            push!(outputs, copied_node)
-        end
-    end
-
-    # Get an result output for each output of the node
+    paramvector = nGraph.ParameterVector(parameters)
     nodevector = nGraph.NodeVector(outputs)
 
     # Create a pass callback to setup the function to the given configuration.
     translated_nodes_ref = Ref(nGraph.Node[])
+
+    # The callback will also locate Parameters that should be assigned to PMEM.
+    remote_args = Set{nGraph.Node}()
+
     function configuration_callback(fn)
         # We have to inspect the graph, find the nodes that do not have converted
         # inputs, and insert out synchronous move nodes so we can control the input/output
@@ -356,17 +313,12 @@ function extract(
             # Line it up by description and input/output sizes.
             if params(backend, op) == params(backend, node)
                 push!(translated_nodes, op)
-
-            # Handle Special Cases
-            # TODO: This should now be handled by turning off optimizations.
-            # elseif nGraph.description(op) == "MatmulBias" && nGraph.description(node) == "Dot"
-            #     push!(translated_nodes, op)
             end
         end
 
         # Throw an error if we didn't find a node matching what we expected.
         if isempty(translated_nodes)
-            for n in copied_nodes
+            for n in translated_nodes
                 println("Copied Node: $n")
                 println("    name:   $(nGraph.name(n))")
                 println("    config: $(config)")
@@ -374,23 +326,11 @@ function extract(
             error("Something done gone wrong!")
         end
 
-        # Here, we splice Move nodes after any direct input to a translated_node that 
-        # a Parameter.
-        #
-        # Originally, this to facilitate recompilation, but now that we're moving away from
-        # recompilation, opting for adding a pass callback to the nGraph compilation 
-        # pipeline, it may be time to revisit this.
-        for translated_node in translated_nodes
-            for (index, input) in enumerate(nGraph.get_inputs(translated_node))
-                if nGraph.description(input) == "Parameter" && config[index] == PMEM
-                    nGraph.splice(input, 1, translated_node, index, nGraph.move(input))
-                end
-            end
-        end
-
         # Finally, configure the translated_nodes to the form that we want.
+        #
+        # This will handle both internal nGraph tensors as well as top level IO
         for translated_node in translated_nodes 
-            _setup!(translated_node, config)
+            _setup!(translated_node, config, remote_args)
         end
 
         # Save the translated nodes to the external translated_nodes_ref
@@ -408,12 +348,101 @@ function extract(
         paramvector, 
         nodevector; 
         callback = callbacks, 
-        emit_timing = true
+        emit_timing = true,
     )
 
+    # Create a function describing if a tensor should be remote or not.
+    #
+    # We use the "totensor" function defined in nGraph.jl to automatically dispatch to
+    # a persistent tensor or a normal tensor.
+    isremote = x -> in(first(nGraph.outputs(x)), remote_args)
+
     # Make these any to make them compatible with the inner call for nGraph.Executable
-    input_tensors = Any[nGraph.Tensor(backend, x).ptr for x in parameters]
-    output_tensors = Any[nGraph.Tensor(backend, x).ptr for x in outputs]
+    input_tensors = Any[nGraph.totensor(backend, x, isremote).ptr for x in parameters]
+    output_tensors = Any[nGraph.totensor(backend, x, isremote).ptr for x in outputs]
 
     return ex, input_tensors, output_tensors, translated_nodes_ref[]
 end
+
+# We have to extract "result" nodes as well since they will copy if input and output 
+# tensors live in different memory pools.
+#
+# We break this up into a general extraction method, and a special case for "results" since
+# that case is much simpler
+function _extract_general(node)
+    # Create parameters for the inputs
+    parameters = nGraph.Node[]
+    for i in 1:nGraph.get_input_size(node)
+        # Check if this input is a constant. If so - copy over the constant.
+        this_input = nGraph.get_input(node, i)
+        if isconstant(this_input)
+            push!(parameters, nGraph.copy(this_input, nGraph.NodeVector()))
+        else
+            P = nGraph.parameter(
+                nGraph.get_input_element_type(node, i),
+                nGraph.get_input_shape(node, i),
+            )
+            push!(parameters, P)
+        end
+    end
+
+    # Insert layout conversion to match the mkldnn layouts in the original graph.
+    links = nGraph.Node[]
+    for i in 1:nGraph.get_input_size(node)
+        if nGraph.input_needs_conversion(node, i)
+            push!(links, nGraph.convert_layout_to(parameters[i], node, i))
+        else
+            push!(links, parameters[i])
+        end
+    end
+
+    # Copy the node with the newly created parameters
+    copied_node = copy(node, links)
+
+    # Make sure we're using the same version of the node - will always return `false` if 
+    # compiling for the GPU backend.
+    nGraph.is_mkldnn(node) && nGraph.set_mkldnn(copied_node)
+
+    # Compile the new function
+    #
+    # Now that we've created a copy of the new node, we need to filter out all of the input
+    # constants we provided so it compiles correctly.
+    filter!(!isconstant, parameters) 
+    paramvector = nGraph.ParameterVector(parameters...)
+
+    outputs = nGraph.Node[]
+    if nGraph.get_output_size(copied_node) > 1
+        for i in 1:nGraph.get_output_size(copied_node)
+            push!(outputs, nGraph.get_output_element(copied_node, i))
+        end
+    else
+        push!(outputs, copied_node)
+    end
+
+    # Get an result output for each output of the node
+    nodevector = nGraph.NodeVector(outputs)
+
+    return parameters, outputs
+end
+
+_extract_result(node::XNode) = _extract_result(nGraph.Node(unx(node)))
+function _extract_result(node)
+    @assert isresult(node)
+    @assert nGraph.get_input_size(node) == 1
+     
+    # We insert a unary negative of the input as the result - this ensure that the result
+    # generated by nGraph is not coming directly from a parameter - which means inplace
+    # assignment of results should happen the intermediate tensor and result are in the
+    # same memory pool.
+    P = nGraph.parameter(nGraph.get_input_element_type(node, 1), nGraph.get_input_shape(node, 1))
+    parameters = [P]
+    outputs = [-P]
+    return parameters, outputs
+end
+
+# Embedding Backprop nodes have a shortcut that avoids a large copy if the input and outputs
+# alias.
+function _extract_embedding_backprop(node)
+
+end
+

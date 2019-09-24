@@ -549,9 +549,6 @@ function add_nodes!(F::Frame)
                 # use `jump_tensor` because it's really a JuMP variable that is returned
                 # by this call.
                 jump_tensor = get_tensor_in_dram(F, tensor, node)
-                if isa(jump_tensor, Int)
-                    @show jump_tensor
-                end
                 if location == DRAM
                     # This branch handles the jump_tensor being either an Int or a
                     # VariableRef just fine.
@@ -599,10 +596,6 @@ function add_nodes!(F::Frame)
                 end
             else
                 coeff = scale(gettime(node, config))
-                println("Node: ", nGraph.name(node))
-                println("Config: ", config)
-                println("Time: ", gettime(node, config))
-
                 add_to_expression!(node_times, coeff, vars[config])
             end
         end

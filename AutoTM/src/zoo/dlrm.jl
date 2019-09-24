@@ -63,7 +63,11 @@ function create_embedding(sparse_dim::Integer, sizes)
 
         # The Facebook implementations use the embedding bag approach, but looking at the 
         # output is is just performing a standard embedding - so that's what we do here.
-        f = x -> nGraph.embedding(x, nGraph.Node(table))
+        f = function(x)
+            n = nGraph.embedding(x, nGraph.Node(table))
+            nGraph.__inplace(table)
+            return n
+        end
         push!(tables, f)
     end
     return tables

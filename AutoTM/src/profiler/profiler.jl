@@ -17,7 +17,6 @@ export  FunctionData,
         get_configs,
         getconfig,
         _setup!,
-        _cleanup!,
         configs_for,
         live_tensors
 
