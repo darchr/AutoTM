@@ -80,22 +80,23 @@ function pgf_price_performance(
             #bar_width = "5pt",
             legend_style =
             {
-                 at = Coordinate(-0.05, 1.05),
-                 anchor = "south west",
-                 legend_columns = 2,
+                 at = Coordinate(1.05, 1.05),
+                 anchor = "north west",
+                 legend_columns = 1,
             },
             ymin = 0,
             #symbolic_x_coords = symbolic_coords,
             nodes_near_coords_align={vertical},
             ymajorgrids,
+            xmajorgrids,
             ylabel_style={
                 align = "center",
             },
-            xtick="data",
+            title = "Base Cost: $base_cost. DRAM Cost: $dram_cost_per_gb. PMM Cost: $pmm_cost_per_gb",
             #ytick = [0,1],
             # Lables
-            xlabel = "PMM to DRAM Ratio",
-            ylabel = "Normalize\\\\Price-Performance Ratio",
+            xlabel = "Cost Ratio to all DRAM",
+            ylabel = "Perforamnce Ratio to all DRAM",
 
         },
         plots...,

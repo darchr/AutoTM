@@ -47,6 +47,7 @@ offenders(frame::Frame) = offenders(frame.modeltype, frame.profile_data)
 function offenders(I::ILPHolder, data::FunctionData, io_bytes = 0)
     dram_limits = I.dram_limits
     ml = maxlimit(I)
+    @show ml
 
     # Go through all of the live tensors - find the first that exceeds the limit
     offending_tensors = XTensor{XNode}[]
@@ -58,7 +59,7 @@ function offenders(I::ILPHolder, data::FunctionData, io_bytes = 0)
 
         # Find all out of bounds tensors
         for tensor in dram_tensors
-            sz = io_bytes + (nGraph.get_pool_offset(unx(tensor)) + sizeof(tensor)) / 1E6
+            sz = (io_bytes + nGraph.get_pool_offset(unx(tensor)) + sizeof(tensor)) / 1E6
             if sz > ml
                 push!(offending_tensors, tensor)
                 worst = max(worst, sz)
@@ -80,7 +81,7 @@ function update(I::T, local_args, data::FunctionData) where {T <: ILPHolder}
 
     decrease_amount = max(
         # Decrease by at most 1%
-        0.99,
+        0.95,
         # If the overuse is small, just decrease by a tiny amount
         1 - ((worst / ml) - 1) / 2,
     )
@@ -226,6 +227,10 @@ function add_tensors!(frame::Frame)
     data = frame.profile_data
     modeltype = frame.modeltype
 
+    for tensor in fixed_tensors(frame)
+        println("Found a fixed tensor: ", nGraph.name(tensor))
+    end
+
     # Create variables for the tensors and add flow constraints to the to the tensor graphs
     @variable(frame.model,
         tensor_graphs[
@@ -236,7 +241,6 @@ function add_tensors!(frame::Frame)
     )
 
     @showprogress 1 "Creating Flow Formulation " for tensor in free_tensors(frame)
-        isfixed(frame, tensor) && continue
         g = graph(descriptor(frame, tensor))
         # Iterate through nodes in the graph - generating constraints based on the type
         # of node.
@@ -545,7 +549,12 @@ function add_nodes!(F::Frame)
                 # use `jump_tensor` because it's really a JuMP variable that is returned
                 # by this call.
                 jump_tensor = get_tensor_in_dram(F, tensor, node)
+                if isa(jump_tensor, Int)
+                    @show jump_tensor
+                end
                 if location == DRAM
+                    # This branch handles the jump_tensor being either an Int or a
+                    # VariableRef just fine.
                     add_to_expression!(expr, jump_tensor)
                     @constraint(F.model, vars[config] <= jump_tensor)
                 else
@@ -585,11 +594,15 @@ function add_nodes!(F::Frame)
                     @constraint(F.model, v[enum] <= vars[config])
                     @constraint(F.model, v[enum] + 1 >= vars[config] + algo_var[node, enum])
 
-                    coeff = scale(ceil(Int64, Profiler.timeat(gettime(node, config), enum)))
+                    coeff = scale(Profiler.timeat(gettime(node, config), enum))
                     add_to_expression!(node_times, coeff, v[enum])
                 end
             else
-                coeff = scale(ceil(Int64, gettime(node, config)))
+                coeff = scale(gettime(node, config))
+                println("Node: ", nGraph.name(node))
+                println("Config: ", config)
+                println("Time: ", gettime(node, config))
+
                 add_to_expression!(node_times, coeff, vars[config])
             end
         end
