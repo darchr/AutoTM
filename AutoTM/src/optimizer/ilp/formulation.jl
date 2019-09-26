@@ -360,6 +360,41 @@ function add_tensors!(frame::Frame)
         end
     end
 
+    #add_tensor_groups!(frame)
+
+    return nothing
+end
+
+# Assert that if a tensor group has more than one element in it, then
+# 1. Each tensor in the group is either a parameter or result.
+# 2. The shortcut edges from source to sink are identical.
+function add_tensor_groups!(frame)
+    data = frame.profile_data
+    model = frame.model 
+    tensor_graphs = model[:tensor_graphs]
+
+    group_to_tensors = Dict{Int, Vector{XTensor{XNode}}}()
+    for tensor in tensors(data)
+        v = get!(group_to_tensors, tensor.group, XTensor{XNode}[])
+        push!(v, tensor)
+    end
+
+    for tensors_in_group in values(group_to_tensors)
+        @assert all(isarg, tensors_in_group)
+        for a in tensors_in_group
+            for b in tensors_in_group
+                a == b && continue
+                println("Grouping Tensors: ", nGraph.name(unx(a)), " and ", nGraph.name(unx(b)))
+
+                # Find their shortcut edges
+                ea = find_shortcut_edge(a) 
+                eb = find_shortcut_edge(b)
+
+                @constraint(model, tensor_graphs[a, ea] == tensor_graphs[b, eb])
+            end
+        end
+    end
+    println("I'm finished :D")
     return nothing
 end
 
@@ -653,6 +688,14 @@ end
 ##### Queries
 #####
 
+function find_shortcut_edge(frame, tensor)
+    g = descriptor(frame, tensor).graph
+    edge = find_edge(g,
+        (g, e) -> _meta(g, src(e)).location == LOC_SOURCE && _meta(g, dst(e)).location == LOC_SINK
+    )
+    return edge
+end
+
 # Check if a given tensor is:
 # 1. A function argument (nGraph function input or output)
 # 2. Assigned to DRAM for the lifetime of the function
@@ -669,11 +712,8 @@ function islocalarg(frame, tensor::XTensor)
     # Find the critical edge from LOC_SOURCE to LOC_SINK
     # This tensor is assigned to the local memory if this edge is taken (has a solved value
     # of one)
-    g = descriptor(frame, tensor).graph
-    edge = find_edge(g,
-        (g, e) -> _meta(g, src(e)).location == LOC_SOURCE && _meta(g, dst(e)).location == LOC_SINK
-    )
-     
+    edge = find_shortcut_edge(frame, tensor)
+
     return approx_one(frame.model[:tensor_graphs][tensor, edge])
 end
 

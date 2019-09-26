@@ -20,6 +20,8 @@ function Base.getindex(io::IOConfig{N,M}, idx::Integer) where {N,M}
     end
 end
 
+Base.getindex(io::IOConfig, I::Vector{Int}) = [io[i] for i in I]
+
 function setindex(io::IOConfig{N,M}, idx::Integer, x::TensorLocation) where {N,M}
     if idx <= N
         inputs = ntuple(i -> i == idx ? x : io.inputs[i], N)

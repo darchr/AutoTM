@@ -58,7 +58,7 @@ function insert_move_node!(
     deleteat!(producer_xtensor.users, findall(in(consumers), producer_xtensor.users))
 
     # Create an output xtensor for the newly created node
-    xtensor = XTensor(first(outputs(move_node)))
+    xtensor = XTensor(first(outputs(move_node)), nGraph.CPU)
     push!(xtensor.users, xnode)
     push!(xnode.outputs, xtensor)
 

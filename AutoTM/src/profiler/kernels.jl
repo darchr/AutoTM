@@ -36,15 +36,15 @@ Keyword Arguments
     must implement the function `save`.
 """
 profile(fex::nGraph.FluxExecutable; kw...) =
-    profile(fex.ex.ngraph_function, fex.ex.backend; fex = fex, kw...)
+    profile(fex.ex.ngraph_function, fex.ex.backend; cb = fex_cb!(fex), kw...)
 
 function profile(
-        f::nGraph.NFunction, 
+        f::nGraph.NFunction,
         backend::nGraph.Backend{T};
         cache = nothing,
         # Force re-profiling
         recache = false,
-        fex = nothing,
+        cb = nothing
     ) where {T}
 
     isnothing(cache) && error("Need to define a cache")
@@ -53,9 +53,9 @@ function profile(
     # structures and metadata on the Julia level.
     data = FunctionData(f, T)
     handle_algo_selection!(cache, backend, data)
-    
-    # Handle inplace and pair-wise parameters
-    merge_tensors!(data, fex)
+
+    # Do any post-processing on the `data` object.
+    isnothing(cb) || cb(data)
 
     # Get all the configurations we are interested in for this run.
     # Need to make a MOVE node in order to control IO configurations.
@@ -171,19 +171,10 @@ function profile(
 end
 
 #####
-##### merge_tensors
-#####
-
-merge_tensors!(data, ::Nothing) = nothing
-function merge_tensors!(data, fex::nGraph.FluxExecutable)
-
-end
-
-#####
 ##### Algorithm selection
 #####
 
-# Right now, no algorithm selection happens in the CPU case - so just special case this 
+# Right now, no algorithm selection happens in the CPU case - so just special case this
 # function to save some CPU cycles
 handle_algo_selection!(cache, backend::nGraph.Backend{nGraph.CPU}, data::FunctionData) = nothing
 function handle_algo_selection!(cache, backend::nGraph.Backend{nGraph.GPU}, data::FunctionData)
@@ -195,7 +186,7 @@ function handle_algo_selection!(cache, backend::nGraph.Backend{nGraph.GPU}, data
 
         # If we can select an algorithm for this node, use the built-in timings
         # and skip the actual profiling.
-        if nGraph.Lib.can_select_algo(nGraph.getpointer(unx(node))) 
+        if nGraph.Lib.can_select_algo(nGraph.getpointer(unx(node)))
             # Hack for the moment - make sure that we only have a single configuration
             # in the GPU case.
             #
@@ -221,7 +212,7 @@ function handle_algo_selection!(cache, backend::nGraph.Backend{nGraph.GPU}, data
 
                 # cuDNN returns the results of its time in milliseconds.
                 #
-                # Convert to microseconds here to make it uniform with the rest of 
+                # Convert to microseconds here to make it uniform with the rest of
                 # the timings.
                 algo_list = [
                     AlgorithmPerf(e, 1000 * t, b) for (e,t,b) in zip(enums, times, bytes)
@@ -280,27 +271,35 @@ parameters. `Move` nodes will be inserted at all inputs and outputs of the copie
 if the inputs come from executable arguments and if the outputs go directly to results.
 """
 function extract(
-        xnode::XNode
+        xnode::XNode,
         backend::nGraph.Backend,
         @nospecialize(config::IOConfig);
     )
 
     # Manually dispatch some cases.
-    if isresult(node) 
-        parameters, outputs = _extract_result(xnode)
+    if isresult(unx(xnode))
+        parameters, output_nodes = _extract_result(xnode)
     else
-        parameters, outputs = _extract_general(xnode)
+        parameters, output_nodes = _extract_general(xnode)
     end
 
     paramvector = nGraph.ParameterVector(parameters)
-    nodevector = nGraph.NodeVector(outputs)
+    nodevector = nGraph.NodeVector(output_nodes)
+
+    # Get the input and output XTensors for this XNode - do a quick sanity check on the
+    # inputs and outputs to make sure everything is still okay.
+    input_xtensors = inputs(xnode) 
+    output_xtensors = outputs(xnode)
+
+    for (x,p) in zip(input_xtensors, parameters)
+        @assert size(unx(x)) == size(p)
+    end
+    for (x,o) in zip(output_xtensors, output_nodes)
+        @assert size(unx(x)) == size(o)
+    end
 
     # Create a pass callback to setup the function to the given configuration.
     translated_nodes_ref = Ref(nGraph.Node[])
-
-    # The callback will also locate Parameters that should be assigned to PMEM.
-    remote_args = Set{nGraph.Node}()
-
     function configuration_callback(fn)
         # We have to inspect the graph, find the nodes that do not have converted
         # inputs, and insert out synchronous move nodes so we can control the input/output
@@ -309,6 +308,7 @@ function extract(
         # But first, we have to find what happened to the original node and find it in the
         # new graph.
         translated_nodes = nGraph.Node[]
+        node = unx(xnode)
         for op in fn
             # Line it up by description and input/output sizes.
             if params(backend, op) == params(backend, node)
@@ -329,12 +329,12 @@ function extract(
         # Finally, configure the translated_nodes to the form that we want.
         #
         # This will handle both internal nGraph tensors as well as top level IO
-        for translated_node in translated_nodes 
-            _setup!(translated_node, config, remote_args)
+        for translated_node in translated_nodes
+            _setup!(translated_node, config)
         end
 
         # Save the translated nodes to the external translated_nodes_ref
-        translated_nodes_ref[] = translated_nodes 
+        translated_nodes_ref[] = translated_nodes
         return nothing
     end
 
@@ -344,32 +344,53 @@ function extract(
 
     # Compile the function
     ex = nGraph.compile(
-        backend, 
-        paramvector, 
-        nodevector; 
-        callback = callbacks, 
+        backend,
+        paramvector,
+        nodevector;
+        callback = callbacks,
         emit_timing = true,
     )
 
-    # Create a function describing if a tensor should be remote or not.
-    #
-    # We use the "totensor" function defined in nGraph.jl to automatically dispatch to
-    # a persistent tensor or a normal tensor.
-    isremote = x -> in(first(nGraph.outputs(x)), remote_args)
-
     # Make these any to make them compatible with the inner call for nGraph.Executable
-    input_tensors = Any[nGraph.totensor(backend, x, isremote).ptr for x in parameters]
-    output_tensors = Any[nGraph.totensor(backend, x, isremote).ptr for x in outputs]
+    #
+    # If we come across any `inplace` annotations, we need to make sure we duplicate the
+    # pointer to the underlying runtime tensor
+    inplace = Dict{Int, nGraph.Tensor}()
+    input_tensors = map(input_xtensors) do x
+        # If this is an inplace node and we've already generated a tensor for it, just
+        # return that tensor
+        if isinplace(x) && haskey(inplace, x.group)
+            return inplace[x.group]
+        end
+        t = nGraph.totensor(backend, unx(x), nGraph.is_persistent)
+        isinplace(x) && (inplace[x.group] = t)
+        return t
+    end
+    @assert isa(input_tensors, Vector{nGraph.Tensor})
+
+    output_tensors = map(output_xtensors) do x
+        # Assume we've already seen inplace tensors and simply return.
+        # Will error if a match is not found - which is kind of what we want.
+        isinplace(x) && return inplace[x.group]
+        return nGraph.totensor(backend, unx(x), nGraph.is_persistent)
+    end
+    @assert isa(output_tensors, Vector{nGraph.Tensor})
+
+    # Due to limitations with the current nGraph interface, we have to cast the input and
+    # output tensor arrays to Vector{Any}
+    input_tensors = convert(Vector{Any}, nGraph.getpointer.(input_tensors))
+    output_tensors = convert(Vector{Any}, nGraph.getpointer.(output_tensors))
 
     return ex, input_tensors, output_tensors, translated_nodes_ref[]
 end
 
-# We have to extract "result" nodes as well since they will copy if input and output 
+# We have to extract "result" nodes as well since they will copy if input and output
 # tensors live in different memory pools.
 #
 # We break this up into a general extraction method, and a special case for "results" since
 # that case is much simpler
-function _extract_general(node)
+function _extract_general(xnode)
+    node = nGraph.Node(unx(xnode))
     # Create parameters for the inputs
     parameters = nGraph.Node[]
     for i in 1:nGraph.get_input_size(node)
@@ -399,7 +420,7 @@ function _extract_general(node)
     # Copy the node with the newly created parameters
     copied_node = copy(node, links)
 
-    # Make sure we're using the same version of the node - will always return `false` if 
+    # Make sure we're using the same version of the node - will always return `false` if
     # compiling for the GPU backend.
     nGraph.is_mkldnn(node) && nGraph.set_mkldnn(copied_node)
 
@@ -407,7 +428,7 @@ function _extract_general(node)
     #
     # Now that we've created a copy of the new node, we need to filter out all of the input
     # constants we provided so it compiles correctly.
-    filter!(!isconstant, parameters) 
+    filter!(!isconstant, parameters)
     paramvector = nGraph.ParameterVector(parameters...)
 
     outputs = nGraph.Node[]
@@ -429,7 +450,7 @@ _extract_result(node::XNode) = _extract_result(nGraph.Node(unx(node)))
 function _extract_result(node)
     @assert isresult(node)
     @assert nGraph.get_input_size(node) == 1
-     
+
     # We insert a unary negative of the input as the result - this ensure that the result
     # generated by nGraph is not coming directly from a parameter - which means inplace
     # assignment of results should happen the intermediate tensor and result are in the
