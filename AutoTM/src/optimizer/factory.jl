@@ -36,7 +36,7 @@ function _factory(
     optimization_times = Float64[]
     remote_args_ref = Ref{Set{TensorDescriptor}}()
 
-    #A callback that profiles the ngraph function
+    # A callback that profiles the ngraph function
     function cb(f::nGraph.NFunction)
         # Do some minor editing the order of nodes in the graph to hopefully yield slightly
         # better memory characteristics
@@ -120,13 +120,15 @@ function _factory(
         defrag && callback!(callbacks, defrag_cb)
 
         try
+            #pre_args = nGraph._compile_snoop(backend, f, args...; isremote = isremote)
+
             fex = nGraph.compile(
                 backend,
                 f,
                 args...;
                 callback = callbacks,
                 emit_timing = true,
-                isremote = isremote,
+                #isremote = isremote,
                 kw...
             )
         catch e

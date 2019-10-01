@@ -146,12 +146,18 @@ function profile(
                 backend,
                 config;
             )
-            GC.gc()
 
             # Run the function several times. The first time is a warm up.
             # Timing for the second runs should be pretty consistent.
-            for _ in 1:5
-                ex(inputs, outputs)
+            GC.@preserve inputs outputs begin
+                # Due to limitations with the current nGraph interface, we have to cast the 
+                # input and output tensor arrays to Vector{Any} where the contents are 
+                # pointers to the runtime Tensors
+                input_ptrs = convert(Vector{Any}, nGraph.getpointer.(inputs))
+                output_ptrs = convert(Vector{Any}, nGraph.getpointer.(outputs))
+                for _ in 1:5
+                    ex(input_ptrs, output_ptrs)
+                end
             end
 
             # Save the run time into the node
@@ -355,31 +361,41 @@ function extract(
     #
     # If we come across any `inplace` annotations, we need to make sure we duplicate the
     # pointer to the underlying runtime tensor
-    inplace = Dict{Int, nGraph.Tensor}()
+    inplace = Dict{Int, nGraph.TensorView}()
     input_tensors = map(input_xtensors) do x
         # If this is an inplace node and we've already generated a tensor for it, just
         # return that tensor
         if isinplace(x) && haskey(inplace, x.group)
             return inplace[x.group]
         end
-        t = nGraph.totensor(backend, unx(x), nGraph.is_persistent)
+
+        # If this tensor is persistent - create a PersistentArray to create it from.
+        # Otherwise, just use a normal array.
+        unxx = unx(x)
+        if nGraph.is_persistent(unxx) 
+            A = PersistentArray{eltype(unxx)}(undef, size(unxx))
+        else
+            A = Array{eltype(unxx)}(undef, size(unxx))
+        end
+        t = nGraph.TensorView(backend, A)
         isinplace(x) && (inplace[x.group] = t)
         return t
     end
-    @assert isa(input_tensors, Vector{nGraph.Tensor})
+    @assert isa(input_tensors, Vector{nGraph.TensorView})
 
     output_tensors = map(output_xtensors) do x
         # Assume we've already seen inplace tensors and simply return.
         # Will error if a match is not found - which is kind of what we want.
         isinplace(x) && return inplace[x.group]
-        return nGraph.totensor(backend, unx(x), nGraph.is_persistent)
+        unxx = unx(x)
+        if nGraph.is_persistent(unxx) 
+            A = PersistentArray{eltype(unxx)}(undef, size(unxx))
+        else
+            A = Array{eltype(unxx)}(undef, size(unxx))
+        end
+        return nGraph.TensorView(backend, A)
     end
-    @assert isa(output_tensors, Vector{nGraph.Tensor})
-
-    # Due to limitations with the current nGraph interface, we have to cast the input and
-    # output tensor arrays to Vector{Any}
-    input_tensors = convert(Vector{Any}, nGraph.getpointer.(input_tensors))
-    output_tensors = convert(Vector{Any}, nGraph.getpointer.(output_tensors))
+    @assert isa(output_tensors, Vector{nGraph.TensorView})
 
     return ex, input_tensors, output_tensors, translated_nodes_ref[]
 end
@@ -459,11 +475,5 @@ function _extract_result(node)
     parameters = [P]
     outputs = [-P]
     return parameters, outputs
-end
-
-# Embedding Backprop nodes have a shortcut that avoids a large copy if the input and outputs
-# alias.
-function _extract_embedding_backprop(node)
-
 end
 

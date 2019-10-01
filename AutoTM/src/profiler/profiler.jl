@@ -1,5 +1,6 @@
 module Profiler
 
+
 # profiledata.jl
 export  FunctionData,
         XNode,
@@ -34,6 +35,7 @@ using Serialization, Dates
 
 using ..Utils
 using ProgressMeter
+using PersistentArrays
 #using JSON
 using Statistics
 import nGraph

@@ -1,14 +1,14 @@
 # Callbacks for merging tensor groups and generating "inplace" annotations.
 
 # Partial application.
-fex_cb!(fex::nGraph.FluxExecutable) = x -> fex_cb!(x, fex)
+opt_cb!(opt) = x -> opt_cb!(x, opt)
 
 # Implementations
 #
 # For general FluxExecutables - we probably don't want to run any kind of merging pass.
 # But when the SGD optimizer, we want to associate the double buffering inputs and outputs
-fex_cb!(data, fex::nGraph.FluxExecutable{T, nGraph.InferenceState}) where {T} = nothing
-function fex_cb!(data, fex::nGraph.FluxExecutable{T, nGraph.SGDState}) where {T}
+opt_cb!(data, ::nGraph.Inference) = nothing
+function opt_cb!(data, optimizer::nGraph.SGDState)
     # Create a dictionary mapping TensorDescriptors to their relevant XTensors
     descriptor_to_xtensor = Dict(unx(t) => t for t in tensors(data)) 
 

@@ -1,3 +1,12 @@
 [submodule "nGraph"]
 	path = nGraph
 	url = https://github.com/hildebrandmw/nGraph.jl
+[submodule "SystemSnoop"]
+	path = SystemSnoop
+	url = https://github.com/hildebrandmw/SystemSnoop.jl
+[submodule "PCM"]
+	path = PCM
+	url = https://github.com/hildebrandmw/PCM.jl
+[submodule "PersistentArrays"]
+	path = PersistentArrays
+	url = https://github.com/darchr/PersistentArrays.jl

@@ -53,7 +53,7 @@ end
 isfixed(x::XTensor) = !isnothing(x.fixed_at)
 fixed_location(x::XTensor) = something(x.fixed_at)
 
-function XTensor(tensor::TensorDescriptor, ::Type{T}, fixed_at = nothing) where {T}
+function XTensor(tensor::TensorDescriptor, ::Type{T}; fixed_at = nothing) where {T}
     # Add in tensors that may also live in PMEM
     xtensor = XTensor(
         tensor,

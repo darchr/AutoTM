@@ -44,8 +44,8 @@ function stem()
             ),
             Chain(
                 Conv((1,1), 160 => 64, relu; pad = 0),
-                Conv((7,1), 64 => 64, relu; pad = (3,0)),
-                Conv((1,7), 64 => 64, relu; pad = (0,3)),
+                Conv((7,1), 64 => 64, relu; pad = (3, 3, 0, 0)),
+                Conv((1,7), 64 => 64, relu; pad = (0, 0, 3, 3)),
                 Conv((3,3), 64 => 96, relu; pad = 0),
             ),
         ),
@@ -89,15 +89,15 @@ function inception_b()
         Conv((1,1), S => 384, relu),
         Chain(
             Conv((1,1), S => 192, relu),
-            Conv((1,7), 192 => 224, relu; pad = (0, 3)),
-            Conv((7,1), 224 => 256, relu; pad = (3, 0)),
+            Conv((1,7), 192 => 224, relu; pad = (0, 0, 3, 3)),
+            Conv((7,1), 224 => 256, relu; pad = (3, 3, 0, 0)),
         ),
         Chain(
             Conv((1,1), S => 192, relu),
-            Conv((1,7), 192 => 192, relu; pad = (0, 3)),
-            Conv((7,1), 192 => 224, relu; pad = (3, 0)),
-            Conv((1,7), 224 => 224, relu; pad = (0, 3)),
-            Conv((7,1), 224 => 256, relu; pad = (3, 0)),
+            Conv((1,7), 192 => 192, relu; pad = (0, 0, 3, 3)),
+            Conv((7,1), 192 => 224, relu; pad = (3, 3, 0, 0)),
+            Conv((1,7), 224 => 224, relu; pad = (0, 0, 3, 3)),
+            Conv((7,1), 224 => 256, relu; pad = (3, 3, 0, 0)),
         )
     )
 end
@@ -114,17 +114,17 @@ function inception_c()
         Chain(
             Conv((1, 1), S => 384, relu),
             InceptionBlock(
-                Conv((1, 3), 384 => 256, relu; pad = (0, 1)),
-                Conv((3, 1), 384 => 256, relu; pad = (1, 0)),
+                Conv((1, 3), 384 => 256, relu; pad = (0, 0, 1, 1)),
+                Conv((3, 1), 384 => 256, relu; pad = (1, 1, 0, 0)),
             ),
         ),
         Chain(
             Conv((1,1), S => 384, relu),
-            Conv((1,3), 384 => 448, relu; pad = (0, 1)),
-            Conv((3,1), 448 => 512, relu; pad = (1, 0)),
+            Conv((1,3), 384 => 448, relu; pad = (0, 0, 1, 1)),
+            Conv((3,1), 448 => 512, relu; pad = (1, 1, 0, 0)),
             InceptionBlock(
-                Conv((1,3), 512 => 256, relu; pad = (0, 1)),
-                Conv((3,1), 512 => 256, relu; pad = (1, 0)),
+                Conv((1,3), 512 => 256, relu; pad = (0, 0, 1, 1)),
+                Conv((3,1), 512 => 256, relu; pad = (1, 1, 0, 0)),
             ),
         )
     )
@@ -159,8 +159,8 @@ function inception_rb()
 
         Chain(
             Conv((1,1), S => 256, relu; pad = 0),
-            Conv((1,7), 256 => 256, relu; pad = (0, 3)),
-            Conv((7,1), 256 => 320, relu; pad = (3, 0)),
+            Conv((1,7), 256 => 256, relu; pad = (0, 0, 3, 3)),
+            Conv((7,1), 256 => 320, relu; pad = (3, 3, 0, 0)),
             Conv((3,3), 320 => 320, relu; pad = 0, stride = 2)
         ),
     )

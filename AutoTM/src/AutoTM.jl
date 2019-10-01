@@ -69,4 +69,10 @@ include("visualizer/visualizer.jl")
 
 include("experiments/experiments.jl")
 
+#####
+##### Extra Utilities
+#####
+
+include("snoop/pcm.jl")
+
 end # module
