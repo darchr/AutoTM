@@ -77,7 +77,7 @@ end
 output_tensors(fex::nGraph.FluxExecutable) = output_tensors(fex.ex.ngraph_function)
 function output_tensors(f::nGraph.NFunction)
     params = NodeDescriptor.(nGraph.get_results(f))
-    return Iterators.flatten(inputs.(params))
+    return Iterators.flatten(outputs.(params))
 end
 
 make_persistent(tensor::TensorDescriptor) = nGraph.make_persistent(tensor)

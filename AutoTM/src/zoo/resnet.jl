@@ -17,7 +17,7 @@ Flux.@treelike ResidualBlock
 function ResidualBlock(
         filters,
         kernels::Array{Tuple{Int,Int}},
-        pads::Array{Tuple{Int,Int}},
+        pads::Array{NTuple{4,Int}},
         strides::Array{Tuple{Int,Int}},
         shortcut = identity
     )
@@ -40,7 +40,7 @@ function ResidualBlock(
     ResidualBlock(
         filters,
         [(i,i) for i in kernels],
-        [(i,i) for i in pads],
+        [(i,i,i,i) for i in pads],
         [(i,i) for i in strides],
         shortcut
     )
@@ -72,7 +72,7 @@ function Bottleneck(filters::Int, downsample::Bool = false, res_top::Bool = fals
                 Conv(
                     (1,1),
                     filters=>4 * filters,
-                    pad = (0,0),
+                    pad = (0,0,0,0),
                     stride = (1,1),
                     init = Flux.glorot_normal,
                 ),
@@ -81,7 +81,7 @@ function Bottleneck(filters::Int, downsample::Bool = false, res_top::Bool = fals
         )
     else
         shortcut = Chain(
-            Conv((1,1), 2 * filters=>4 * filters, pad = (0,0), stride = (2,2), init = Flux.glorot_normal),
+            Conv((1,1), 2 * filters=>4 * filters, pad = (0,0,0,0), stride = (2,2), init = Flux.glorot_normal),
             BatchNorm(4 * filters)
         )
         return ResidualBlock(
@@ -102,7 +102,7 @@ function _resnet(version::AbstractResnet)
     layers = _layers(version)
     layer_arr = []
 
-    push!(layer_arr, Conv((7,7), 3=>64, pad = (3,3), stride = (2,2), init = Flux.glorot_normal))
+    push!(layer_arr, Conv((7,7), 3=>64, pad = (3,3,3,3), stride = (2,2), init = Flux.glorot_normal))
     push!(layer_arr, x -> maxpool(x, (3,3), pad = (1,1), stride = (2,2)))
 
     initial_filters = 64

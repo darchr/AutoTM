@@ -336,6 +336,12 @@ function extract(
         #
         # This will handle both internal nGraph tensors as well as top level IO
         for translated_node in translated_nodes
+            # Splice in move nodes
+            for (index, input) in enumerate(nGraph.get_inputs(translated_node)) 
+                if config[index] == PMEM
+                    nGraph.splice(input, 1, translated_node, index, nGraph.move(input))
+                end
+            end
             _setup!(translated_node, config)
         end
 
@@ -372,31 +378,27 @@ function extract(
         # If this tensor is persistent - create a PersistentArray to create it from.
         # Otherwise, just use a normal array.
         unxx = unx(x)
-        if nGraph.is_persistent(unxx) 
-            A = PersistentArray{eltype(unxx)}(undef, size(unxx))
-        else
-            A = Array{eltype(unxx)}(undef, size(unxx))
-        end
+        A = Array{eltype(unxx)}(undef, size(unxx))
         t = nGraph.TensorView(backend, A)
         isinplace(x) && (inplace[x.group] = t)
         return t
     end
     @assert isa(input_tensors, Vector{nGraph.TensorView})
 
-    output_tensors = map(output_xtensors) do x
+    output_tensors = map(zip(output_xtensors, output_nodes)) do tup
+        x = tup[1]
+        out_node = tup[2]
+
         # Assume we've already seen inplace tensors and simply return.
         # Will error if a match is not found - which is kind of what we want.
         isinplace(x) && return inplace[x.group]
         unxx = unx(x)
-        if nGraph.is_persistent(unxx) 
-            A = PersistentArray{eltype(unxx)}(undef, size(unxx))
-        else
-            A = Array{eltype(unxx)}(undef, size(unxx))
-        end
+        A = Array{eltype(unxx)}(undef, size(unxx))
+
         return nGraph.TensorView(backend, A)
     end
-    @assert isa(output_tensors, Vector{nGraph.TensorView})
 
+    @assert isa(output_tensors, Vector{nGraph.TensorView})
     return ex, input_tensors, output_tensors, translated_nodes_ref[]
 end
 
@@ -445,7 +447,6 @@ function _extract_general(xnode)
     # Now that we've created a copy of the new node, we need to filter out all of the input
     # constants we provided so it compiles correctly.
     filter!(!isconstant, parameters)
-    paramvector = nGraph.ParameterVector(parameters...)
 
     outputs = nGraph.Node[]
     if nGraph.get_output_size(copied_node) > 1
@@ -455,9 +456,6 @@ function _extract_general(xnode)
     else
         push!(outputs, copied_node)
     end
-
-    # Get an result output for each output of the node
-    nodevector = nGraph.NodeVector(outputs)
 
     return parameters, outputs
 end
