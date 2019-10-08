@@ -1,15 +1,4 @@
-# Model with synchronous "move" nodes
-#
-# The formulation here is similar to the "Simple" formulation, but now data is allowed
-# to move from DRAM to PMEM using synchronous move nodes. Using a move node adds
-# execution time based on the relative read and write bandwidths.
-#
-# This is realized by generating a tensor location set for each op the tensor is live.
-#
-# We then create a variable that is "active" when a tensor changes location from DRAM
-# to PMEM. These variables will add time to the objective function
-
-# Scaling for numerical stability
+# Scaling for numerical stability - may not be needed
 scale(x) = x / 10000
 
 get_reference(S::TensorMeta, node::XNode) = S.reference_map[node]
@@ -80,8 +69,8 @@ function update(I::T, local_args, data::FunctionData) where {T <: ILPHolder}
     @info "Allocation size: " worst
 
     decrease_amount = max(
-        # Decrease by at most 1%
-        0.95,
+        # Decrease by at most 5%
+        0.9,
         # If the overuse is small, just decrease by a tiny amount
         1 - ((worst / ml) - 1) / 2,
     )
@@ -96,17 +85,14 @@ function update(I::T, local_args, data::FunctionData) where {T <: ILPHolder}
         end
     end
 
-    radius = 3
+    radius = 5
     # Expand indices around the radius
     indices = Iterators.flatten([(idx - radius):(idx + radius) for idx in unique(indices)]) |>
         collect |>
         unique
     for idx in indices
-        # Scale surrounding regions as well
-        for i in (idx - radius):(idx + radius)
-            if checkbounds(Bool, dram_limits, i)
-                dram_limits[i] = round(Int, decrease_amount * dram_limits[i])
-            end
+        if checkbounds(Bool, dram_limits, idx)
+            dram_limits[idx] = round(Int, decrease_amount * dram_limits[idx])
         end
     end
 
@@ -220,6 +206,7 @@ end
 #####
 
 isfixed(frame::Frame, tensor) = descriptor(frame, tensor).isfixed
+#isfixed(frame::Frame, tensor) = false
 free_tensors(frame::Frame) = [t for t in tensors(frame.profile_data) if !isfixed(frame, t)]
 fixed_tensors(frame::Frame) = [t for t in tensors(frame.profile_data) if isfixed(frame, t)]
 

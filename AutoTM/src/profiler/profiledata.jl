@@ -229,13 +229,13 @@ function FunctionData(fn::nGraph.NFunction, ::Type{T}) where {T}
         push!(nodes, xnode)
 
         for tensor in outputs(op)
-            # if isresult(op) || isparam(op)
-            #     xtensor = XTensor(tensor, T; fixed_at = DRAM)
-            # else
-            #     xtensor = XTensor(tensor, T)
-            # end
+            if isresult(op) || isparam(op)
+                xtensor = XTensor(tensor, T; fixed_at = DRAM)
+            else
+                xtensor = XTensor(tensor, T)
+            end
             # Create an XTensor from this output.
-            xtensor = XTensor(tensor, T)
+            #xtensor = XTensor(tensor, T)
             push!(tensors, xtensor)
 
             # Register the producing node as the first user

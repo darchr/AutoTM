@@ -1,0 +1,19 @@
+name = "Snooper"
+uuid = "f30c1ba8-7693-4b1e-8e6d-7c42fdf2893a"
+authors = ["Mark Hildebrand <mhildebrand@ucdavis.edu>"]
+version = "0.1.0"
+
+[deps]
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+PCM = "7d644800-0fd4-5f4f-871b-eb28bd968194"
+SystemSnoop = "c30797a9-91c2-5451-bcc7-95710ac2a28d"
+UnicodePlots = "b8865327-cd53-5732-bb35-84acbb429228"
+
+[compat]
+julia = "1"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]

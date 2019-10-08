@@ -11,7 +11,7 @@ const FOLLOWERS = [
     "Subtract",
     "MaxPool",
     "AvgPool",
-    "Concat",
+    #"Concat",
     "Max",
     "Min",
     "Multiply",

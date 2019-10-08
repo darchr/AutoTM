@@ -44,6 +44,7 @@ function profile(
         cache = nothing,
         # Force re-profiling
         recache = false,
+        show_progress = true,
         cb = nothing
     ) where {T}
 
@@ -84,24 +85,26 @@ function profile(
     end
 
     num_configs = sum(length(config_dict[node]) for node in nodes(data) if hasprofile(node))
-    progress_bar = Progress(num_configs, 1)
+    progress_bar = Progress(num_configs, 0.2)
 
     # Setup a little update function for all configurations
     # This gives a more fine-grained information than updating for each op
     serviced = Ref(0)
     function _update!(p, op, config, ncached)
-        serviced[] += 1
-        ProgressMeter.next!(
-            p;
-            valuecolor = :white,
-            showvalues = [
-                (:iter, serviced[]),
-                (:total, num_configs),
-                (:op, nGraph.name(op)),
-                (:config, config),
-                (:ncached, ncached),
-            ]
-        )
+        if show_progress
+            serviced[] += 1
+            ProgressMeter.next!(
+                p;
+                valuecolor = :white,
+                showvalues = [
+                    (:iter, serviced[]),
+                    (:total, num_configs),
+                    (:op, nGraph.name(op)),
+                    (:config, config),
+                    (:ncached, ncached),
+                ]
+            )
+        end
     end
 
     # Disable some passes that get rid of the node we actually want
@@ -140,7 +143,6 @@ function profile(
             # Extract this particular node with the given configuration
             # Place GC barriers around the instantiation of the nGraph.Executable to try
             # to reduce interference with other extractions.
-            GC.gc()
             ex, inputs, outputs, copied_ops = extract(
                 node,
                 backend,
@@ -150,11 +152,12 @@ function profile(
             # Run the function several times. The first time is a warm up.
             # Timing for the second runs should be pretty consistent.
             GC.@preserve inputs outputs begin
-                # Due to limitations with the current nGraph interface, we have to cast the 
-                # input and output tensor arrays to Vector{Any} where the contents are 
+                # Due to limitations with the current nGraph interface, we have to cast the
+                # input and output tensor arrays to Vector{Any} where the contents are
                 # pointers to the runtime Tensors
                 input_ptrs = convert(Vector{Any}, nGraph.getpointer.(inputs))
                 output_ptrs = convert(Vector{Any}, nGraph.getpointer.(outputs))
+
                 for _ in 1:5
                     ex(input_ptrs, output_ptrs)
                 end
@@ -294,7 +297,7 @@ function extract(
 
     # Get the input and output XTensors for this XNode - do a quick sanity check on the
     # inputs and outputs to make sure everything is still okay.
-    input_xtensors = inputs(xnode) 
+    input_xtensors = inputs(xnode)
     output_xtensors = outputs(xnode)
 
     for (x,p) in zip(input_xtensors, parameters)
@@ -320,6 +323,14 @@ function extract(
             if params(backend, op) == params(backend, node)
                 push!(translated_nodes, op)
             end
+
+            # TODO: I used to allow an option to specify the number of copies.
+            # That has been removed, but `translated_nodes`, is still expected to be an
+            # iterable of some kind. So, just abort when we find a suitable node.
+            #
+            # This is mainly needed because `ConvertLayout` has a tendancy to go overboard
+            # and segfault.
+            length(translated_nodes) == 1 && break
         end
 
         # Throw an error if we didn't find a node matching what we expected.
@@ -337,9 +348,22 @@ function extract(
         # This will handle both internal nGraph tensors as well as top level IO
         for translated_node in translated_nodes
             # Splice in move nodes
-            for (index, input) in enumerate(nGraph.get_inputs(translated_node)) 
+            for (index, input) in enumerate(nGraph.get_inputs(translated_node))
                 if config[index] == PMEM
                     nGraph.splice(input, 1, translated_node, index, nGraph.move(input))
+                end
+            end
+            for index in 1:nGraph.get_output_size(translated_node)
+                for output in nGraph.get_output(translated_node, index)
+                    if config.outputs[index] == PMEM
+                        nGraph.splice(
+                            translated_node,
+                            index,
+                            output,
+                            1,
+                            nGraph.move(translated_node, index)
+                        )
+                    end
                 end
             end
             _setup!(translated_node, config)
@@ -378,7 +402,8 @@ function extract(
         # If this tensor is persistent - create a PersistentArray to create it from.
         # Otherwise, just use a normal array.
         unxx = unx(x)
-        A = Array{eltype(unxx)}(undef, size(unxx))
+        #A = zeros(eltype(unxx), size(unxx))
+        A = aligned_alloc(eltype(unxx), size(unxx))
         t = nGraph.TensorView(backend, A)
         isinplace(x) && (inplace[x.group] = t)
         return t
@@ -393,13 +418,38 @@ function extract(
         # Will error if a match is not found - which is kind of what we want.
         isinplace(x) && return inplace[x.group]
         unxx = unx(x)
-        A = Array{eltype(unxx)}(undef, size(unxx))
-
+        #A = zeros(eltype(unxx), size(unxx))
+        A = aligned_alloc(eltype(unxx), size(unxx))
         return nGraph.TensorView(backend, A)
     end
-
     @assert isa(output_tensors, Vector{nGraph.TensorView})
+
     return ex, input_tensors, output_tensors, translated_nodes_ref[]
+end
+
+function aligned_alloc(::Type{T}, sz; alignment = 64) where {T}
+    # Julia guarentees 16 byte alignment for small arrays and 64-byte allignment for
+    # larger arrays. However, we want 64-byte alignment for ALL arrays because of the use
+    # of AvX instructions in nGraph.
+    #
+    # Also - make sure to populate the entries with zeros, otherwise data values inside
+    # ngraph may go flying around all over the place causing mayhem.
+    # While the alignment to the first element is not 64 bytes aligned - try again.
+    #
+    # If the size if greater than 2KB, allocate it normally.
+    # Otherwise, allocate an array bigger than normal and resize it down.
+    #
+    # For discussion, see: https://discourse.julialang.org/t/aligned-julia-arrays/10993/27
+    bytes = sizeof(T) * prod(sz)
+    if bytes > 2048
+        A = zeros(T, sz)
+        return A
+    else
+        A = zeros(T, div(4096, sizeof(T)))
+        resize!(A, prod(sz))
+        B = reshape(A, sz)
+        return B
+    end
 end
 
 # We have to extract "result" nodes as well since they will copy if input and output

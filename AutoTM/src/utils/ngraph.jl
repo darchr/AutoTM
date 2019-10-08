@@ -38,15 +38,22 @@ end
 #####
 ##### General helpers
 #####
-hasprofile(op_description::String) = !in(op_description, ("Parameter", "Constant", "Move", "MoveAsync"))
-hasprofile(op::nGraph.Node) = hasprofile(nGraph.description(op))
-hasprofile(x::NodeDescriptor) = hasprofile(nGraph.description(x))
+
+const NON_PROFILED_NODES = (
+    "Parameter",
+    "Constant", 
+    "Move", 
+    "MoveAsync", 
+    "Result",
+)
+
+hasprofile(op_description::String) = !in(op_description, NON_PROFILED_NODES)
+hasprofile(x::nGraph.NodeLike) = hasprofile(nGraph.description(x))
 
 # Hook to exclude some nodes from computation overlap
 #is_memory_intensive(op_description::String) = in(op_description, ("MatmulBias",))
 is_memory_intensive(op_description::String) = false
-is_memory_intensive(op::nGraph.Node) = is_memory_intensive(nGraph.description(op))
-is_memory_intensive(op::NodeDescriptor) = is_memory_intensive(nGraph.description(op))
+is_memory_intensize(x::nGraph.NodeLike) = is_memory_intensive(nGraph.description(x))
 
 ismove(description::String) = startswith(description, "Move")
 ismove(x::nGraph.NodeLike) = ismove(nGraph.description(x))
@@ -58,8 +65,7 @@ ismovesync(description::String) = description == "Move"
 ismovesync(x::nGraph.NodeLike) = ismovesync(nGraph.description(x))
 
 isconstant(description::String) = startswith(description, "Constant")
-isconstant(x::nGraph.Node) = isconstant(nGraph.description(x))
-isconstant(x::NodeDescriptor) = isconstant(nGraph.description(x))
+isconstant(x::nGraph.NodeLike) = isconstant(nGraph.description(x))
 
 # TODO: These might not be perfect ...
 isparam(str::String) = startswith(str, "Parameter")

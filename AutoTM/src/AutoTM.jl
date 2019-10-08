@@ -18,7 +18,7 @@ function __init__()
     backend = nGraph.Backend("CPU")     
 
     # If pmm is enabled, configure the backend to use our custom allocator.
-    pmm_enabled && nGraph.Lib.set_pmm_allocator(nGraph.getpointer(backend))
+    # pmm_enabled && nGraph.Lib.set_pmm_allocator(nGraph.getpointer(backend))
 end
 
 # stdlibs
@@ -68,11 +68,5 @@ include("visualizer/visualizer.jl")
 #####
 
 include("experiments/experiments.jl")
-
-#####
-##### Extra Utilities
-#####
-
-include("snoop/pcm.jl")
 
 end # module
