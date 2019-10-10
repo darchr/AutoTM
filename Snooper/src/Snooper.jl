@@ -16,8 +16,11 @@ cas_count_wr() = perf_event(0x4) + perf_umask(0xc)
 pmm_read_cmd() = perf_event(0xe3)
 pmm_write_cmd() = perf_event(0xe7)
 
-#pmm_read_cmd() = perf_event(0xea) + perf_umask(0x2)
-#pmm_write_cmd() = perf_event(0xea) + perf_umask(0x4)
+tagchk_hit() = perf_event(0xd3) + perf_umask(0x1)
+tagchk_miss_clean() = perf_event(0xd3) + perf_umask(0x2)
+tagchk_miss_dirty() = perf_event(0xd3) + perf_umask(0x4)
+pmm_wq() = perf_event(0xe4) + perf_umask(0x1)
+all_pmm_cmd() = perf_event(0xea) + perf_umask(0x1)
 
 makevar(i) = "PCM_COUNTER_$(i-1)"
 function setvars(nt::NamedTuple)
