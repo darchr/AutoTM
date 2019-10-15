@@ -145,6 +145,7 @@ unx(t::XTensor) = t.tensor
 locations(t::XTensor) = t.locations
 nGraph.name(t::XTensor) = nGraph.name(t.tensor)
 Base.show(io::IO, x::XTensor) = println(io, "XTensor: ", nGraph.name(x))
+getoffset(t::XTensor) = nGraph.get_pool_offset(t.tensor)
 
 #####
 ##### XNode

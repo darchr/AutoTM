@@ -14,6 +14,7 @@ function factory(
         adjust_io = false,
         defrag = true,
         just_profile = false,
+        use_scratchpad = false,
         profile_kw...
     )
 
@@ -26,6 +27,11 @@ function factory(
         # Do some minor editing the order of nodes in the graph to hopefully yield slightly
         # better memory characteristics
         priority_pass!(f)
+
+        if use_scratchpad
+            data = Profiler.FunctionData(f, nGraph.CPU)
+            setup_scratchpad!(data; threshold = 100)
+        end
     end
 
     callbacks = CallbackChain()

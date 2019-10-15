@@ -18,8 +18,8 @@
 
 # Select which set of tests to run
 #mode = "test"
-#mode = "2lm"
-mode = "1lm"
+mode = "2lm"
+#mode = "1lm"
 
 # How often to sample counters
 sampletime = 1      # Seconds
@@ -29,6 +29,9 @@ sampletime = 1      # Seconds
 # - `tags`: Collect tag check metrics and PMM write queue occupancy
 counters = "rw"
 #counters = "tags"
+
+# Flag on if to use a `scratchpad` during 2LM execution.
+use_2lm_scratchpad = true
 
 # The name of the Pipe to use for communication with `counter.jl`
 pipe_name = "counter_pipe"
@@ -56,19 +59,19 @@ if mode == "test"
     cache = AutoTM.Profiler.CPUKernelCache(AutoTM.Experiments.SINGLE_KERNEL_PATH)
 elseif mode == "1lm"
     trials = [
-        (AutoTM.Experiments.large_inception(),  "inception_1lm.jls"),
+        #(AutoTM.Experiments.large_inception(),  "inception_1lm.jls"),
         (AutoTM.Experiments.large_vgg(),        "vgg_1lm.jls"),
         (AutoTM.Experiments.large_resnet(),     "resnet_1lm.jls"),
-        (AutoTM.Experiments.large_densenet(),    "densenet_1lm.jls"),
+        (AutoTM.Experiments.large_densenet(),   "densenet_1lm.jls"),
     ]
     opt = AutoTM.Optimizer.Synchronous(185_000_000_000)
     cache = AutoTM.Profiler.CPUKernelCache(AutoTM.Experiments.SINGLE_KERNEL_PATH)
 elseif mode == "2lm"
     trials = [
-        (AutoTM.Experiments.large_inception(),  "inception_2lm_cache.jls"),
-        (AutoTM.Experiments.large_vgg(),        "vgg_2lm_cache.jls"),
-        (AutoTM.Experiments.large_resnet(),     "resnet_2lm_cache.jls"),
-        (AutoTM.Experiments.large_densenet(),    "densenet_2lm_cache.jls"),
+        (AutoTM.Experiments.large_inception(),  "inception_scratchpad_2lm.jls"),
+        (AutoTM.Experiments.large_vgg(),        "vgg_scratchpad_2lm.jls"),
+        (AutoTM.Experiments.large_resnet(),     "resnet_scratchpad_2lm.jls"),
+        (AutoTM.Experiments.large_densenet(),   "densenet_scratchpad_2lm.jls"),
     ]
     opt = AutoTM.Optimizer.Optimizer2LM()
     cache = nothing

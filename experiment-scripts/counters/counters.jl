@@ -45,7 +45,6 @@ function sample(sock, sampletime, filepath, counter_tuple)
             while true
                 # Sleep until it's time to sample.
                 sleep(sampler) 
-                println("sampling")
 
                 # If something goes wrong during measurement, `measure` will return `false`.
                 # We handle that gracefully by performing an early exit.

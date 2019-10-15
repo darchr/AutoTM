@@ -83,3 +83,21 @@ function priority_pass!(f::nGraph.NFunction)
     end
     return nothing
 end
+
+#####
+##### Scratchpad
+#####
+
+# Optimization for 2LM: assign short lived tensors to a different memory pool so they all
+# end up at similar memory addresses
+function setup_scratchpad!(data::Profiler.FunctionData; threshold = 100)
+    for tensor in tensors(data)
+        start = producer(tensor).index
+        stop = consumer(tensor).index
+
+        if stop - start >= threshold
+            nGraph.set_pool_number(tensor.tensor, 2)
+        end
+    end
+    return nothing
+end
