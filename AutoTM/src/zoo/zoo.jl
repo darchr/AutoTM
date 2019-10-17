@@ -3,6 +3,8 @@ module Zoo
 # Stdlib requirements
 using Statistics, Random
 
+using ..Utils: Actualizer
+
 # Use Flux for the actual modeling
 using Flux
 import nGraph

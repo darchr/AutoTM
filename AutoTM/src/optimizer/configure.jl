@@ -29,10 +29,10 @@ function insert_move_node!(
             unx(this_producer),
             producer_output,
             unx.(consumers),
-            consumer_inputs
+            consumer_inputs,
         )
     else
-        move_node = Utils.insert_moveasync_node!(
+        move_node = Utils.insert_move_node!(
             unx(this_producer),
             producer_output,
             unx.(consumers),

@@ -3,11 +3,11 @@ module Optimizer
 using ..Utils
 using ..Profiler
 import nGraph
-import Match
 
 using ProgressMeter
 using LightGraphs
-using JuMP, Gurobi
+using JuMP
+using Gurobi
 
 # Scheduling Heuristic
 include("affinity.jl")

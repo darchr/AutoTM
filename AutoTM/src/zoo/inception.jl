@@ -19,7 +19,6 @@ const A_SIZE = (35, 35, 384)
 const B_SIZE = (17, 17, 1024)
 const C_SIZE = (8, 8, 1536)
 
-
 # We're gonna be REALLY mean to type inference. Sorry Julia!
 function stem()
     println("Stem")
@@ -237,9 +236,8 @@ function inception_v4_training(batchsize; kw...)
 
     forward = inception_v4(x)
     f(x, y) = Flux.crossentropy(forward(x), y)
-    kw = (optimizer = nGraph.SGD(Float32(0.001)),)
 
-    return f, (X,Y), kw
+    return Actualizer(f, X, Y; optimizer = nGraph.SGD(Float32(0.001)))
 end
 
 #####
@@ -275,7 +273,7 @@ function mnist(batchsize = 16)
     x = rand(Float32, 28, 28, 1, batchsize)
     kw = NamedTuple()
 
-    return model, (x,), kw
+    return Actualizer(model, x)
 end
 
 # Include an additional modifier to allow modifying the optimizer
@@ -289,20 +287,18 @@ function mnist_train(batchsize = 16)
     random_labels!(y)
 
     f(x, y) = Flux.crossentropy(model(x), y)
-    kw = (optimizer = nGraph.SGD(Float32(0.001)),)
-
-    return f, (x, y), kw
+    return Acutalizer(f, x, y; optimizer = nGraph.SGD(Float32(0.001)))
 end
 
 function makeconv(; filter = (3,3), channels = 256, filters = 256)
     c = Conv(filter, channels => filters)
     X = rand(Float32, 17, 17, 256, 16)
     kw = NamedTuple()
-    return c, (X,), kw
+    return Actualizer(c, X)
 end
 
 function doadd()
     f(a) = max.(a, 1e-7)
     X = randn(Float32, 10, 10, 10, 10)
-    return f, (X,), NamedTuple()
+    return Actualizer(f, X)
 end

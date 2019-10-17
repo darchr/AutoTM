@@ -76,7 +76,7 @@ function _getgadgets(A::ILPHolder{IsAsynchronous}, data::FunctionData, t::XTenso
             ref = node
 
         # Check if there is a user node within `bound`. If so, make this an async move node.
-        elseif hasprofile(node) && !Utils.is_memory_intensive(unx(node)) &&
+        elseif hasprofile(node) &&
             any(
                 in(users(t)),
                 (nodes(data)[i] for i in max(ind-bound, 1):min(ind+bound, length(nodes(data))))
@@ -221,7 +221,7 @@ function preprocess!(S::ILPHolder, data::FunctionData)
         @assert !isempty(gadgets)
 
         # Graph building time :D
-        g = MetaGraph(DiGraph(), EdgeMetadata, VertexMetadata)
+        g = MetaGraph{EdgeMetadata,VertexMetadata}(DiGraph())
 
         # If this tensor can only be assigned to a single location - don't generate a graph
         # for it - otherwise, populate the nodes in a tensor graph
@@ -285,8 +285,8 @@ function preprocess!(S::ILPHolder, data::FunctionData)
         for src in vertices(g), dst in vertices(g)
             src == dst && continue
 
-            src_meta = _meta(g, src)
-            dst_meta = _meta(g, dst)
+            src_meta = getmeta(g, src)
+            dst_meta = getmeta(g, dst)
 
             metadata = edge_metadata(
                 src_meta.location,

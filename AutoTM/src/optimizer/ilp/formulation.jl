@@ -233,13 +233,13 @@ function add_tensors!(frame::Frame)
         # of node.
         for v in vertices(g)
             # Set flow coming out of the source node
-            if _meta(g, v).location == LOC_SOURCE
+            if getmeta(g, v).location == LOC_SOURCE
                 @constraint(frame.model,
                     sum(tensor_graphs[tensor, e] for e in outedges(g, v)) == 1
                 )
 
             # Set flow going into the sink node
-            elseif _meta(g, v).location == LOC_SINK
+            elseif getmeta(g, v).location == LOC_SINK
                 @constraint(frame.model,
                     sum(tensor_graphs[tensor, e] for e in inedges(g, v)) == 1
                 )
@@ -293,9 +293,10 @@ function add_tensors!(frame::Frame)
         if isarg(tensor) 
             # Find the source to sink edge.
             # Will error if this edge doesn't exist, so serves as a form of error checking
-            edge = find_edge(g,
-                (g, e) -> _meta(g, src(e)).location == LOC_SOURCE && 
-                          _meta(g, dst(e)).location == LOC_SINK
+            edge = find_edge(
+                (g, e) -> getmeta(g, src(e)).location == LOC_SOURCE && 
+                          getmeta(g, dst(e)).location == LOC_SINK,
+                g
             )
             push!(skip_edge, edge)
         end
@@ -303,7 +304,7 @@ function add_tensors!(frame::Frame)
         for user in users(desc)
             # Get the DRAM for this op.
             verts = filter(
-                v -> isdram(_meta(g,v).location) && _meta(g,v).op == user,
+                v -> isdram(getmeta(g,v).location) && getmeta(g,v).op == user,
                 vertices(g)
             )
 
@@ -324,12 +325,12 @@ function add_tensors!(frame::Frame)
 
             # Similary, set the post DRAM constraints
             _edges = filter(
-                e -> (isdram(_meta(g, src(e)).location) &&
+                e -> (isdram(getmeta(g, src(e)).location) &&
                     # Need to check "LOC_SINK" for the static case
                     (
-                        isdram(_meta(g, dst(e)).location) ||
-                        _meta(g, dst(e)).location == LOC_SINK
-                    ) && _meta(g, src(e)).op == user),
+                        isdram(getmeta(g, dst(e)).location) ||
+                        getmeta(g, dst(e)).location == LOC_SINK
+                    ) && getmeta(g, src(e)).op == user),
                 collect(edges(g))
             )
             _iter = vflatten(_edges, skip_edge)
@@ -387,7 +388,7 @@ end
 
 # Filter on edge type, sort by parent index to get the edges in execution order.
 _find_edges(g, edgetype) = sort(
-    filter(e -> _meta(g, e).edgetype == edgetype, collect(edges(g))),
+    filter(e -> getmeta(g, e).edgetype == edgetype, collect(edges(g))),
     by = src
 )
 
@@ -452,7 +453,7 @@ function add_movement_formulations!(frame::Frame)
         # Assign each edge to the kernel it overlaps with.
         #
         # Just go overkill and grab all the edges, even though we end up only using a subset.
-        kernels = Dict(e => _meta(g,src(e)).op for e in edges(g))
+        kernels = Dict(e => getmeta(g,src(e)).op for e in edges(g))
 
         # Create read variables expressions
         for e in async_reads
@@ -677,8 +678,9 @@ end
 
 function find_shortcut_edge(frame, tensor)
     g = descriptor(frame, tensor).graph
-    edge = find_edge(g,
-        (g, e) -> _meta(g, src(e)).location == LOC_SOURCE && _meta(g, dst(e)).location == LOC_SINK
+    edge = find_edge(
+        (g, e) -> getmeta(g, src(e)).location == LOC_SOURCE && getmeta(g, dst(e)).location == LOC_SINK,
+        g
     )
     return edge
 end

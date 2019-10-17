@@ -135,12 +135,11 @@ function resnet_training(version::T, batchsize = 16; kw...) where {T <: Abstract
 
     g(x, y) = Flux.crossentropy(_resnet(version)(x), y)
     kw = (optimizer = nGraph.SGD(Float32(0.001)),)
-    return g, (X, Y), kw
+    return Actualizer(g, X, Y; optimizer = nGraph.SGD(Float32(0.001)))
 end
 
 function resnet_inference(version::T, batchsize = 16) where {T <: AbstractResnet}
     X = rand(Float32, 224, 224, 3, batchsize)
     f = x -> _resnet(version)(x)
-    kw = NamedTuple()
-    return f, (X,), kw
+    return Actualizer(f, X)
 end

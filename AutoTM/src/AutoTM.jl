@@ -3,7 +3,7 @@ module AutoTM
 # Setup environmental variables for nGraph
 function __init__()
     setup_affinities()
-    setup_profiling()
+    setup_codegen()
     setup_passes()
     
     # Setup PMEM if that option is enabled in nGraph.jl
@@ -17,8 +17,11 @@ function __init__()
     # be loaded/links and we error :(
     backend = nGraph.Backend("CPU")     
 
-    # If pmm is enabled, configure the backend to use our custom allocator.
-    # pmm_enabled && nGraph.Lib.set_pmm_allocator(nGraph.getpointer(backend))
+    # DEPRECATRED: This is needed for a newer version of ngraph - but I reverted back
+    # to the ASPLOS version of ngraph because the newer version was too unstable for
+    # development.
+    # # If pmm is enabled, configure the backend to use our custom allocator.
+    # # pmm_enabled && nGraph.Lib.set_pmm_allocator(nGraph.getpointer(backend))
 end
 
 # stdlibs
@@ -26,30 +29,35 @@ using Dates, Random, Serialization, Statistics
 
 # deps
 using nGraph
+using nGraph: TensorDescriptor, NodeDescriptor, inputs, outputs, description
 
-# Import some names
-import nGraph: TensorDescriptor, NodeDescriptor, inputs, outputs, description
-
-using JuMP, Gurobi
+using JuMP
+using Gurobi
 using LightGraphs
 using IterTools
 using ProgressMeter
 using DataStructures
 using Flux
-using JSON
 
 # for the beautiful plotting!
 using PGFPlotsX
+
+# docstringing it up!
+using DocStringExtensions
 
 Backend(args...) = nGraph.Backend(args...)
 
 #####
 ##### Core Functionality
 #####
+
 include("setup.jl")
 include("utils/utils.jl")
 include("profiler/profiler.jl")
 include("optimizer/optimizer.jl")
+
+# Bring in some utils stuff
+using .Utils: Actualizer, actualize, @deferred
 
 #####
 ##### Predefined models

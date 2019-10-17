@@ -82,15 +82,15 @@ function get_schedule(F::Frame)
         g = graph(descriptor(F, tensor))
 
         # Trace the route taken through the graph
-        v = find_vertex(g, (g, v) -> _meta(g, v).location == LOC_SOURCE)
+        v = find_vertex((g, v) -> getmeta(g, v).location == LOC_SOURCE, g)
 
-        path = [_meta(g, v)]
+        path = [getmeta(g, v)]
         seen = Int[]
-        while _meta(g, v).location != LOC_SINK
+        while getmeta(g, v).location != LOC_SINK
             if isempty(outedges(g, v)) || in(v, seen)
                 error("""
                 $tensor
-                $(_meta(g, v))
+                $(getmeta(g, v))
                 """)
             end
 
@@ -101,7 +101,7 @@ function get_schedule(F::Frame)
                     break
                 end
             end
-            push!(path, _meta(g, v))
+            push!(path, getmeta(g, v))
         end
         # Drop the first source element and last sink element
         popfirst!(path)
@@ -130,7 +130,7 @@ function isasync(tensor_graph, a::VertexMetadata, b::VertexMetadata)
     # Get the vertex number from the metadata - construct the edge
     src = a.vertex_number
     dst = b.vertex_number
-    edge_metadata = _meta(tensor_graph, edgetype(tensor_graph)(src, dst))
+    edge_metadata = getmeta(tensor_graph, edgetype(tensor_graph)(src, dst))
     return isasync(edge_metadata)
 end
 

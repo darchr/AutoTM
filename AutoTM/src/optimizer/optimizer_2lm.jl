@@ -15,6 +15,7 @@ function factory(
         defrag = true,
         just_profile = false,
         use_scratchpad = false,
+        threshold = 20,
         profile_kw...
     )
 
@@ -30,7 +31,7 @@ function factory(
 
         if use_scratchpad
             data = Profiler.FunctionData(f, nGraph.CPU)
-            setup_scratchpad!(data; threshold = 100)
+            setup_scratchpad!(data; threshold = threshold)
         end
     end
 

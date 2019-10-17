@@ -119,31 +119,25 @@ function vgg19_inference(batchsize)
     x = (x .- mean(x)) ./ std(x)
 
     forward = vgg19()
-
-    #g = nGraph.compile(backend, forward, X)
-    return forward, (x,), NamedTuple()
+    return Actualizer(forward, x)
 end
 
 _forward(::Vgg19) = vgg19()
 _forward(::Vgg416) = vgg416()
 
 function vgg_training(vgg::T, batchsize) where {T <: AbstractVgg}
-    x = rand(Float32, 224, 224, 3, batchsize)
-    y = zeros(Float32, 1000, batchsize)
+    X = rand(Float32, 224, 224, 3, batchsize)
+    Y = zeros(Float32, 1000, batchsize)
     for col in 1:batchsize
-        y[rand(1:1000), col] = one(eltype(y))
+        Y[rand(1:1000), col] = one(eltype(Y))
     end
-
-    X = x
-    Y = y
 
     # Get the forward pass
     forward = _forward(vgg)
 
     # Compute the backward pass.
     f(x, y) = Flux.crossentropy(forward(x), y)
-    kw = (optimizer = nGraph.SGD(Float32(0.005)),)
-    return f, (X,Y), kw
+    return Actualizer(f, X, Y; optimizer = nGraph.SGD(Float32(0.005)))
 end
 
 function random_labels!(y)

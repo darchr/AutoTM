@@ -60,8 +60,5 @@ function densenet_training(batchsize; growth = 32)
     random_labels!(y) 
     forward = DenseNet(growth)
     f(x, y) = Flux.crossentropy(forward(x), y)
-
-    kw = (optimizer = nGraph.SGD(Float32(0.001)),)
-
-    return f, (x, y), kw
+    return Actualizer(f, x, y; optimizer = nGraph.SGD(Float32(0.001)))
 end

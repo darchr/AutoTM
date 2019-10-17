@@ -1,3 +1,0 @@
-# AutoTM
-
-*Documentation goes here.*

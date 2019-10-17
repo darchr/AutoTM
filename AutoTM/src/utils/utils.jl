@@ -1,17 +1,16 @@
 module Utils
 
 # For compiling
-export actualize
+export Actualizer, actualize, @deferred
 
 # Exports from ioconfig
 export IOConfig, setindex, TensorLocation, DRAM, PMEM
 
 # Export from metagraph
-export MetaGraph, inedges, outedges, _meta, rem_edge!
+export MetaGraph, inedges, outedges, getmeta, rem_edge!
 
 # Export fron ngraph
 export  insert_move_node!,
-        insert_moveasync_node!,
         hasprofile,
         ismemory_intensive,
         ismove,
@@ -20,12 +19,9 @@ export  insert_move_node!,
         isconstant,
         isparam,
         isresult,
-        _producer,
-        _lastuser,
         input_tensors,
         output_tensors,
         make_persistent,
-        make_volatile,
         CallbackChain,
         callback!,
         CompilerExit
@@ -40,7 +36,7 @@ export getratio, ratio_string, footprint, compare_ratio
 export approx_one, find_vertex, find_edge, findonly, dict_push!, vflatten
 
 import LightGraphs
-import JuMP 
+import JuMP
 
 # Import all of nGraph plus some commonly used names
 #
@@ -49,16 +45,7 @@ import JuMP
 import nGraph
 import nGraph: TensorDescriptor, NodeDescriptor, inputs, outputs, description
 
-#####
-##### Compile and create a model
-#####
-
-function actualize(backend, func; env = (), nkw...)
-    f, args, kw = func()
-    return withenv(env...) do
-        nGraph.compile(backend, f, args...; kw..., nkw...)
-    end
-end
+using DocStringExtensions
 
 include("ioconfig.jl")
 include("metagraph.jl")
@@ -68,15 +55,74 @@ include("ratio.jl")
 # Memory Allocator Model
 include("allocator.jl")
 
-# Random other stuff
-#
-# Helper for making some generic functions
-approx_one(x) = isapprox(x, one(x); atol = 1e-3)
-approx_one(x::JuMP.VariableRef) = approx_one(JuMP.value(x))
-
+#####
+##### Compile and create a model
+#####
 
 """
-    findonly(f, itr)
+Return type for `AutoTM` compatible functions.
+
+$(FIELDS)
+"""
+struct Actualizer
+    "Function to convert to ngraph."
+    f
+
+    "Arguements to pass to `f`."
+    args::Tuple
+
+    "Keyword arguments to pass to `nGraph.compile`"
+    kw::NamedTuple
+    Actualizer(f, x...; kw...) = new(f, x, NamedTuple{keys(kw)}(values(kw)))
+end
+
+"""
+$(SIGNATURES)
+
+Convert `f` to an ngraph executable running on `backend`. Argument `f` must be callable
+with no arguments and return an [`Actualizer`](@ref).
+
+Keyword Arguments
+-----------------
+* `env`: Tuple of environmental variable pairs to be forwared to `withenv` when compiling `f`.
+
+* `nkw`: Extra keyword or keyword overrides to pass to `nGraph.compile`.
+"""
+function actualize(backend, f; env = (), nkw...)
+    A = f()::Actualizer
+    return withenv(env...) do
+        nGraph.compile(backend, A.f, A.args...; A.kw..., nkw...)
+    end
+end
+
+"""
+$(SIGNATURES)
+
+A macro that wraps an expression in a closure for deferred calling.
+
+julia> y = 2
+2
+
+julia> f = AutoTM.@deferred y + 2;
+
+julia> f()
+4
+"""
+macro deferred(expr)
+    return :(() -> $(esc(expr)))
+end
+
+"""
+$(SIGNATURES)
+
+Return `true` if `x` is approximately equal to 1. Works on standard variables and
+`JuMP.VariableRef`.
+"""
+approx_one(x; atol = 1e-3) = isapprox(x, one(x); atol = atol)
+approx_one(x::JuMP.VariableRef; kw...) = approx_one(JuMP.value(x); kw...)
+
+"""
+$(SIGNATURES)
 
 Find the first element of `x` iterator `itr` where `f(x) == true` and make sure that `x`
 is the only element of `itr` with this property.
@@ -84,30 +130,27 @@ is the only element of `itr` with this property.
 Return the index of `x`.
 """
 function findonly(f, itr)
-    idx = findfirst(f, itr)
-    isnothing(idx) && error()
-    return idx
+    indices = findall(f, itr)
+    if length(indices) != 1
+        throw(ArgumentError("Expected to find just one valid index. Instead, found $(length(indices))"))
+    end
+    return first(indices)
 end
 
+"""
+$(SIGNATURES)
+
+Check if Dict `d` has key `k`. If so, push `v` to `d[k]`. Otherwise, initialize `d[k]`
+to a `[v]`.
+"""
 dict_push!(d, k, v) = haskey(d, k) ? push!(d[k], v) : (d[k] = [v])
 
-#####
-##### Utility Functions
-#####
+"""
+$(SIGNATURES)
 
-function find_vertex(g, f)
-    iter = filter(v -> f(g,v), collect(LightGraphs.vertices(g)))
-    # Make sure we only have one match
-    @assert length(iter) == 1
-    return first(iter)
-end
-function find_edge(g, f)
-    iter = filter(v -> f(g,v), collect(LightGraphs.edges(g)))
-    # Make sure we only have one match
-    @assert length(iter) == 1
-    return first(iter)
-end
-
+Variadic version of `Iterators.flatten`.
+"""
 vflatten(x...) = Iterators.flatten(x)
 
 end
+

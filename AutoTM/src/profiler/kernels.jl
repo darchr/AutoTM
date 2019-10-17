@@ -35,8 +35,9 @@ Keyword Arguments
 * `cache`: A cache to serve running times if a kernel has already been profiled. The cache
     must implement the function `save`.
 """
-profile(fex::nGraph.FluxExecutable; kw...) =
-    profile(fex.ex.ngraph_function, fex.ex.backend; cb = fex_cb!(fex), kw...)
+function profile(fex::nGraph.FluxExecutable; kw...)
+    return profile(fex.ex.ngraph_function, fex.ex.backend; cb = opt_cb!(fex.optimizer), kw...)
+end
 
 function profile(
         f::nGraph.NFunction,
