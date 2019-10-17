@@ -45,7 +45,7 @@ struct MetaGraph{T,E,V} <: LightGraphs.AbstractGraph{T}
     Construct a `MetaGraph` from `graph` with edge metadata type `E` and vertes metadata 
     type `V`.
     """
-    function MetaGraph{E,V}(graph::LightGraphs.SimpleDiGraph{T}) where {T,E,V}
+    function MetaGraph(graph::LightGraphs.SimpleDiGraph{T}, ::Type{E}, ::Type{V}) where {T,E,V}
         edge_meta = Dict{LightGraphs.edgetype(graph),E}()
         vertex_meta = Dict{eltype(graph),V}()
         return new{T,typeof(edge_meta),typeof(vertex_meta)}(graph, edge_meta, vertex_meta)

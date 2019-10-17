@@ -10,20 +10,20 @@
     f = AutoTM.@deferred AutoTM.Zoo.vgg19_inference(16)
     @test isa(f(), AutoTM.Utils.Actualizer)
     F = AutoTM.actualize(backend, f)
-    
-    @test isa(F(), nGraph.TensorView) 
+
+    @test isa(F(), nGraph.TensorView)
 
     # Training
-    f = AutoTM.@deferred AutoTM.Zoo.vgg_training(AutoTM.Zoo.Vgg19(), 16) 
+    f = AutoTM.@deferred AutoTM.Zoo.vgg_training(AutoTM.Zoo.Vgg19(), 16)
     @test isa(f(), AutoTM.Utils.Actualizer)
     F = AutoTM.actualize(backend, f)
-    
-    @test isa(F(), nGraph.TensorView) 
+
+    @test isa(F(), nGraph.TensorView)
 
     #####
     ##### findonly
     #####
-   
+
     x = [2, 3, 4]
     # Examples where just one object if found
     @test AutoTM.Utils.findonly(isequal(2), x) == 1
@@ -34,9 +34,9 @@
     @test_throws ArgumentError AutoTM.Utils.findonly(x -> x > 0, x)
 
     #####
-    ##### dict_push
+    ##### dict_push!
     #####
-   
+
     d = Dict{Int,Vector{Int}}()
     AutoTM.Utils.dict_push!(d, 1, 2)
     @test d == Dict(1 => [2])
@@ -50,7 +50,7 @@
     #####
     ##### vflatten
     #####
-    
+
     x = [1,2]
     y = [3,4]
     @test collect(AutoTM.Utils.vflatten(x, y)) == [1,2,3,4]
@@ -92,15 +92,15 @@ end
     #   2 -- 'b'
     #   3 -- 'c'
     #
-    # Edge: 
+    # Edge:
     #   1 => 2 -- 1
     #   2 => 3 -- 2
     #   3 => 2 -- 3
-    
+
     LG = AutoTM.Utils.LightGraphs
     AU = AutoTM.Utils
-   
-    mg = AU.MetaGraph{Int,Char}(LG.SimpleDiGraph())
+
+    mg = AU.MetaGraph(LG.SimpleDiGraph(),Int,Char)
     # Add the vertices with their metadata
     LG.add_vertex!(mg, 'a')
     LG.add_vertex!(mg, 'b')
@@ -120,7 +120,7 @@ end
 
     # Test some of the standard lightgraphs functions to make sure things are forwarding
     # properly.
-    @test LG.ne(mg) == 3 
+    @test LG.ne(mg) == 3
     @test LG.nv(mg) == 3
     @test LG.outneighbors(mg, 1) == [2]
     @test LG.inneighbors(mg, 2) == [1, 3]
@@ -135,13 +135,13 @@ end
     @test AU.getmeta(mg, v) == 'a'
 
     # Check when number of matches is greater than 1
-    @test_throws ArgumentError AU.find_vertex((g,v) -> true, mg) 
+    @test_throws ArgumentError AU.find_vertex((g,v) -> true, mg)
 
     # Check when number of matches is 0
-    @test_throws ArgumentError AU.find_vertex((g,v) -> false, mg) 
+    @test_throws ArgumentError AU.find_vertex((g,v) -> false, mg)
 
     # Do the same thing for edges.
-    e = AU.find_edge((g,v) -> AU.getmeta(g, v) == 3, mg) 
+    e = AU.find_edge((g,v) -> AU.getmeta(g, v) == 3, mg)
     @test e == et(3, 2)
     @test_throws ArgumentError AU.find_edge((g,v) -> true, mg)
     @test_throws ArgumentError AU.find_edge((g,v) -> false, mg)

@@ -97,6 +97,12 @@ git-tree-sha1 = "da85d135b6048d3e78603e277cf9a4609f7e0673"
 uuid = "7057c7e9-c182-5462-911a-8362d720325c"
 version = "0.2.6"
 
+[[Cbc]]
+deps = ["BinaryProvider", "Libdl", "MathOptInterface", "MathProgBase", "SparseArrays", "Test"]
+git-tree-sha1 = "c3a18f5f6ec5996354bea0cf6c5a950a26e86b7d"
+uuid = "9961bab8-2fa3-5c5a-9d89-47fab24efd76"
+version = "0.6.3"
+
 [[CodecZlib]]
 deps = ["BinaryProvider", "Libdl", "TranscodingStreams"]
 git-tree-sha1 = "05916673a2627dd91b4969ff8ba6941bc85a960e"

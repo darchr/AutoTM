@@ -27,7 +27,7 @@ function _factory(
 
     # Get the function, arguments, and keyword arguments from the provided function
     Profiler.enable_passes()
-    f, args, kw = func()
+    A = func()::Actualizer
 
     # add a callback that will populate a reference to a `FunctionData` type
     frame_ref = Ref{Frame}()
@@ -124,12 +124,12 @@ function _factory(
 
             fex = nGraph.compile(
                 backend,
-                f,
-                args...;
+                A.f,
+                A.args...;
                 callback = callbacks,
                 emit_timing = true,
                 #isremote = isremote,
-                kw...
+                A.kw...
             )
         catch e
             isa(e, CompilerRetry) || rethrow(e)

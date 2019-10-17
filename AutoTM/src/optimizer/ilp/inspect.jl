@@ -1,4 +1,4 @@
-estimate_move_time(fex::nGraph.FluxExecutable, frame::Frame{ILPHolder{IsFixed}}) = zero(Float64)
+estimate_move_time(fex::nGraph.FluxExecutable, frame::Frame{ILPHolder{Static}}) = zero(Float64)
 estimate_move_time(fex::nGraph.FluxExecutable, frame::Frame) = 
     estimate_move_time(fex.ex.ngraph_function, frame)
 

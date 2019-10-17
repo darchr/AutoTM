@@ -5,11 +5,11 @@
 # Small network for debugging and such
 #test_vgg() = Vgg19(16)
 
-conventional_inception() = Inception_v4(1024)
-conventional_resnet() = Resnet200(512)
-conventional_vgg() = Vgg19(2048)
-conventional_densenet() = DenseNet(512)
-conventional_transformer() = Transformer(512, 150)
+conventional_inception()    = Inception_v4(1024)
+conventional_resnet()       = Resnet200(512)
+conventional_vgg()          = Vgg19(2048)
+conventional_densenet()     = DenseNet(512)
+conventional_transformer()  = Transformer(512, 150)
 
 test_vgg() = Vgg19(32)
 
@@ -26,7 +26,6 @@ conventional_functions() = [
     conventional_resnet(),
     conventional_vgg(),
     conventional_densenet(),
-    #conventional_transformer(),
 ]
 
 function single_kernel_profile(fns; recache = false)
@@ -59,38 +58,10 @@ function multi_kernel_profile(; recache = false)
     end
 end
 
-function describe(ratio; formulation = "numa")
-    fns = conventional_functions()
-    cache = SINGLE_KERNEL_PATH
-    backend = nGraph.Backend("CPU")
-
-    perfs_dram = Float64[]
-
-    for f in fns
-        data = deserialize(canonical_path(f, formulation, cache, backend))
-        dram_performance = Visualizer.get_dram_performance(data)
-
-        runs = data.runs
-        if haskey(first(runs), :ratio)
-            ind = findfirst(x -> x[:ratio] == ratio, runs)
-        else
-            @info "Performing Ratio Search Fallback"
-            ind = Visualizer.findabsmin(x -> compare_ratio(getratio(x), ratio), data.runs)
-        end
-
-        perf_dram = dram_performance / data.runs[ind][:actual_runtime]
-
-        println(Visualizer.titlename(f))
-        println(perf_dram)
-        push!(perfs_dram, perf_dram)
-    end
-
-    println(prod(perfs_dram) ^ (1 / length(perfs_dram)))
-end
-
 #####
 ##### Standard Routine
 #####
+
 function run_conventional()
     fns = (
         #test_vgg(),

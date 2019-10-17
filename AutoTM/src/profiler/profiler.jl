@@ -41,11 +41,11 @@ using Statistics
 import nGraph
 import ..AutoTM._env_context
 
-include("profiledata.jl")
+include("functiondata.jl")
 include("cache.jl")
 include("kernels.jl")
 include("compare.jl")
-include("gpu.jl")
+include("inspect.jl")
 include("callbacks.jl")
 
 end

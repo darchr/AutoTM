@@ -1,3 +1,5 @@
+using Cbc
+
 # Scaling for numerical stability - may not be needed
 scale(x) = x / 10000
 
@@ -116,33 +118,6 @@ wb(I::ILPHolder) = I.write_bandwidth
 rba(I::ILPHolder) = I.read_bandwidth_async
 wba(I::ILPHolder) = I.write_bandwidth_async
 
-static(dram_limits; defrag = false) = ILPHolder{IsFixed}(
-    dram_limits,# / 1E3,
-    Dict{XTensor{XNode}, TensorMeta}(),
-    Dict{XNode, Vector{JuMP.VariableRef}}(),
-    Dict{String, Int}(),
-    1,1,1,1,
-    defrag,
-)
-
-synchronous(dram_limits, a, b; defrag = false) = ILPHolder{IsSynchronous}(
-    dram_limits,# / 1E3,
-    Dict{XTensor{XNode}, TensorMeta}(),
-    Dict{XNode, Vector{JuMP.VariableRef}}(),
-    Dict{String, Int}(),
-    a,b,1,1,
-    defrag,
-)
-
-asynchronous(dram_limits,a,b,c,d; defrag = false) = ILPHolder{IsAsynchronous}(
-    dram_limits,# / 1E3,
-    Dict{XTensor{XNode}, TensorMeta}(),
-    Dict{XNode, Vector{JuMP.VariableRef}}(),
-    Dict{String, Int}(),
-    a,b,c,d,
-    defrag,
-)
-
 # Common Methods
 
 # Length check because ngraph compilation is not 100 % consistent and can sometimes have
@@ -165,7 +140,9 @@ function create_model(modeltype::ILPHolder, profile_data::FunctionData)
     preprocess!(modeltype, profile_data)
 
     # Start with an empty model that we will progressively build.
-    model = Model(with_optimizer(Gurobi.Optimizer; TimeLimit = 3600, MIPGap = 0.01))
+    #model = Model(with_optimizer(Gurobi.Optimizer; TimeLimit = 3600, MIPGap = 0.01))
+    model = Model(with_optimizer(Cbc.Optimizer))
+    
     frame = Frame(modeltype, model, profile_data)
 
     # Going deep into JuMP here - the idea is to build the objective as a bunch of aff exprs
@@ -393,7 +370,7 @@ _find_edges(g, edgetype) = sort(
 )
 
 # Formulation specific move node stuff
-add_movement_formulations!(frame::Frame{ILPHolder{IsFixed}}) = nothing
+add_movement_formulations!(frame::Frame{ILPHolder{Static}}) = nothing
 function add_movement_formulations!(frame::Frame)
     # Unpack variables
     data = frame.profile_data

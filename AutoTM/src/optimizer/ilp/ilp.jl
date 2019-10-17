@@ -1,122 +1,42 @@
-# Struct to be passed around since all these items are generally used together anyways.
-mutable struct Frame{T}
-    modeltype::T
-    model::JuMP.Model
-    profile_data::FunctionData
-
-    # Function parameters that are in the "local" memory and thus should be counted for the
-    # total memory consumption.
-    local_args::Vector{XTensor{XNode}}
-end
-
-Frame(modeltype, model::JuMP.Model, profile_data::FunctionData) = 
-    Frame(modeltype, model, profile_data, XTensor{XNode}[])
-
-limit(F::Frame) = limit(F.modeltype)
-JuMP.optimize!(F::Frame) = optimize!(F.model)
+# General idea here: An ILPOptimizer is a lightweight type used to create the a full model.
+# An `ILPHolder` is the struct that holds most of the metadata about ILP construction.
+# An `ILPOptimizer` is used to construct an `ILPHolder`.
 
 # ILP Optimizer
-abstract type ILPOptimizer{T} <: AbstractOptimizer{T} end
+abstract type ILPType end
 
-## Static ILP Formulation
-struct Static{T} <: ILPOptimizer{T}
-    # PMM to DRAM ratio
-    ratio::T
+struct Static <: ILPType end
+struct Synchronous <: ILPType end
+struct Asynchronous <: ILPType end
 
-    # We use inner constructors to avoid automitic promotion to rationals or ints which
-    # could lead to subtle bugs.
-    Static{T}(x::T) where {T <: OPTIM_TYPES} = new{T}(x)
-    Static(x::T) where {T <: OPTIM_TYPES} = new{T}(x)
+struct ILPOptimizer{T, U <: ILPType} <: AbstractOptimizer{T} 
+    # PMM to DRAM ratio - depending on `T`
+    x::T
 end
 
-name(::Static) = "static"
-function (M::Static{Rational{Int64}})(data, backend::nGraph.Backend)
+# Hijack `_getratio` to forward to the correct field.
+_getratio(I::ILPOptimizer) = I.x
+
+function (O::ILPOptimizer{Rational{Int64}})(data, backend::nGraph.Backend)
     bounds = Profiler.allocation_bounds(data)
 
-    x = fill(round(Int, (bounds.upper_bound / (getratio(M) + 1)) / 1E6), size(nodes(data)))
+    x = fill(round(Int, (bounds.upper_bound / (getratio(O) + 1)) / 1E6), size(nodes(data)))
     println("Trying to use $(maximum(x)) MB of memory")
-    return static(x; defrag = !iszero(_numerator(M)))
+    return ILPHolder(O, x, backend; defrag = !iszero(_numerator(O)))
 end
 
-function (M::Static{Int64})(data, backend::nGraph.Backend)
+function (O::ILPOptimizer{Int64})(data, backend::nGraph.Backend)
     x = fill(round(Int, getlimit(M) / 1E6), size(nodes(data)))
     println("Trying to use $(maximum(x)) MB of memory")
-    return static(x)
+    return ILPHolder(O, x, backend)
 end
 
-
-## Synchronous ILP Formulation
-struct Synchronous{T} <: ILPOptimizer{T}
-    ratio::T
-    Synchronous{T}(x::T) where {T <: OPTIM_TYPES} = new{T}(x)
-    Synchronous(x::T) where {T <: OPTIM_TYPES} = new{T}(x)
-end
-
-name(::Synchronous) = "synchronous"
-function (M::Synchronous{Rational{Int}})(data, backend::nGraph.Backend)
-    bounds = Profiler.allocation_bounds(data)
-    x = fill(
-        round(Int, (bounds.upper_bound / (getratio(M) + 1)) / 1E6), size(nodes(data))
-    )
-    println("Trying to use $(maximum(x)) MB of memory")
-    return synchronous(
-        x,
-        _bw_remote_local_sync(backend),
-        _bw_local_remote_sync(backend);
-        defrag = !iszero(_numerator(M))
-    )
-end
-
-function (M::Synchronous{Int})(data, backend::nGraph.Backend)
-    x = fill(round(Int, getlimit(M) / 1E6), size(nodes(data)))
-    println("Trying to use $(maximum(x)) MB of memory")
-    return synchronous(
-        x,
-        _bw_remote_local_sync(backend),
-        _bw_local_remote_sync(backend);
-        defrag = !iszero(_numerator(M))
-    )
-end
-
-
-## Asynchronous ILP Formulation
-struct Asynchronous{T} <: ILPOptimizer{T}
-    ratio::T
-
-    Asynchronous{T}(x::T) where {T <: OPTIM_TYPES} = new{T}(x)
-    Asynchronous(x::T) where {T <: OPTIM_TYPES} = new{T}(x)
-end
-
-name(::Asynchronous) = "asynchronous"
-function (M::Asynchronous{Rational{Int}})(data, backend::nGraph.Backend)
-    bounds = Profiler.allocation_bounds(data)
-    x = fill(round(Int, (bounds.upper_bound / (getratio(M) + 1)) / 1E6), size(nodes(data)))
-    println("Trying to use $(maximum(x)) MB of memory")
-    return asynchronous(
-        x,
-        _bw_remote_local_sync(backend),
-        _bw_local_remote_sync(backend),
-        _bw_remote_local_async(backend),
-        _bw_local_remote_async(backend);
-        defrag = !iszero(_numerator(M))
-    )
-end
-
-function (M::Asynchronous{Int})(data, backend::nGraph.Backend)
-    x = fill(round(Int, getlimit(M) / 1E6), size(nodes(data)))
-    println("Trying to use $(maximum(x)) MB of memory")
-    return asynchronous(
-        x, 
-        _bw_remote_local_sync(backend),
-        _bw_local_remote_sync(backend),
-        _bw_remote_local_async(backend),
-        _bw_local_remote_async(backend);
-        defrag = !iszero(_numerator(M))
-     )
-end
+Static(x::T) where {T <: OPTIM_TYPES} = ILPOptimizer{T, Static}(x)
+Synchronous(x::T) where {T <: OPTIM_TYPES} = ILPOptimizer{T, Synchronous}(x)
+Asynchronous(x::T) where {T <: OPTIM_TYPES} = ILPOptimizer{T, Asynchronous}(x)
 
 #####
-##### Model Types
+##### TensorMeta
 #####
 
 struct TensorMeta
@@ -132,13 +52,11 @@ struct TensorMeta
     isfixed::Bool 
 end
 
-# Singleton types for dispatching to different formulations
-abstract type ILPFormulationType end
-struct IsFixed <: ILPFormulationType end
-struct IsSynchronous <: ILPFormulationType end
-struct IsAsynchronous <: ILPFormulationType end
+#####
+##### ILPHolder
+#####
 
-mutable struct ILPHolder{T <: ILPFormulationType}
+mutable struct ILPHolder{T <: ILPType}
     dram_limits::Vector{Int}
 
     descriptors::Dict{XTensor{XNode}, TensorMeta}
@@ -159,6 +77,48 @@ mutable struct ILPHolder{T <: ILPFormulationType}
     # Flag to determine if we need to defrag
     defrag::Bool
 end
+
+
+# Build an ILP Holder that will constain most of the metadata for IL: Construction.
+function ILPHolder(O::ILPOptimizer{<:Any, T}, limits, backend; defrag = true) where {T}
+    return ILPHolder{T}(
+        limits,
+        Dict{XTensor{XNode}, TensorMeta}(),
+        Dict{XNode, Vector{JuMP.VariableRef}}(),
+        Dict{String, Int}(),
+        _bw_remote_local_sync(backend),
+        _bw_local_remote_sync(backend),
+        _bw_remote_local_async(backend),
+        _bw_local_remote_async(backend),
+        defrag,
+    )
+end
+
+name(::Type{Static}) = "static"
+name(::Type{Synchronous}) = "synchronous"
+name(::Type{Asynchronous}) = "asynchronous"
+name(::ILPOptimizer{<:Any, T}) where {T} = name(T)
+
+# Struct to be passed around since all these items are generally used together anyways.
+mutable struct Frame{T <: ILPHolder}
+    modeltype::T
+    model::JuMP.Model
+    profile_data::FunctionData
+
+    # Function parameters that are in the "local" memory and thus should be counted for the
+    # total memory consumption.
+    local_args::Vector{XTensor{XNode}}
+end
+
+Frame(modeltype, model::JuMP.Model, profile_data::FunctionData) = 
+    Frame(modeltype, model, profile_data, XTensor{XNode}[])
+
+limit(F::Frame) = limit(F.modeltype)
+JuMP.optimize!(F::Frame) = optimize!(F.model)
+
+#####
+##### Model Types
+#####
 
 # Implementations
 include("tensor_graphs.jl")

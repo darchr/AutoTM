@@ -1,6 +1,7 @@
 ## Metadata For graph creation
 @enum VertexLocation LOC_PMEM LOC_DRAM LOC_DRAM_PRE LOC_SOURCE LOC_SINK
 
+# Helpers - generally pretty simple but helpful for abstracting the `isdram` attribute.
 ispmem(loc::VertexLocation) = loc == LOC_PMEM
 isdram(loc::VertexLocation) = loc == LOC_DRAM || loc == LOC_DRAM_PRE
 issource(loc::VertexLocation) = loc == LOC_SOURCE
@@ -13,6 +14,7 @@ issink(loc::VertexLocation) = loc == LOC_SINK
     EDGE_ASYNC_READ
     EDGE_ASYNC_WRITE
 end
+
 isasync(et::EdgeType) = in(et, (EDGE_ASYNC_READ, EDGE_ASYNC_WRITE))
 
 @enum MoveType MOVE_NONE MOVE_SYNC MOVE_ASYNC
@@ -40,17 +42,9 @@ isasync(em::EdgeMetadata) = isasync(em.edgetype)
 ##### Preprocessing
 #####
 
-# Preprocessing basically involves creating the tensor graphs for each intermediate tensor.
-#function liverange(data::FunctionData, t::XTensor)
-#    start = findfirst(isequal(producer(t)), nodes(data))::Int
-#    stop = findlast(isequal(consumer(t)), nodes(data))
-#    isnothing(stop) && (stop = length(nodes))
-#    return start:stop
-#end
+liverange(t::XTensor) = (producer(t).index):(consumer(t).index)
 
-liverange(t::XTensor) = producer(t).index:consumer(t).index
-
-function _getgadgets(A::ILPHolder{IsAsynchronous}, data::FunctionData, t::XTensor)
+function _getgadgets(A::ILPHolder{Asynchronous}, data::FunctionData, t::XTensor)
     range = liverange(t)
     livenodes = (nodes(data)[x] for x in range)
     refs = Vector{NamedTuple{(:node, :move_type),Tuple{XNode,MoveType}}}()
@@ -91,7 +85,7 @@ function _getgadgets(A::ILPHolder{IsAsynchronous}, data::FunctionData, t::XTenso
     return refs, reference_map
 end
 
-function _getgadgets(::ILPHolder{IsSynchronous}, data::FunctionData, t::XTensor)
+function _getgadgets(::ILPHolder{Synchronous}, data::FunctionData, t::XTensor)
     range = liverange(t)
     livenodes = (nodes(data)[x] for x in range)
 
@@ -113,7 +107,7 @@ function _getgadgets(::ILPHolder{IsSynchronous}, data::FunctionData, t::XTensor)
     return nt, reference_map
 end
 
-function _getgadgets(::ILPHolder{IsFixed}, data::FunctionData, t::XTensor)
+function _getgadgets(::ILPHolder{Static}, data::FunctionData, t::XTensor)
     range = liverange(t)
     producer = nodes(data)[first(range)]
 
@@ -221,7 +215,7 @@ function preprocess!(S::ILPHolder, data::FunctionData)
         @assert !isempty(gadgets)
 
         # Graph building time :D
-        g = MetaGraph{EdgeMetadata,VertexMetadata}(DiGraph())
+        g = MetaGraph(DiGraph(), EdgeMetadata, VertexMetadata)
 
         # If this tensor can only be assigned to a single location - don't generate a graph
         # for it - otherwise, populate the nodes in a tensor graph

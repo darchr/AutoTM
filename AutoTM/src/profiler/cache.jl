@@ -1,11 +1,7 @@
 # TODO: Hold on to constant parameters such as padding and stride for Convolutions
-
-# Build a dispatch chain for getting kernel parameters
-params(x, node::nGraph.NodeLike) = _params(x, node)
-params(x, node::XNode) = _params(x, unx(node))
-
-_params(::nGraph.Backend{nGraph.CPU}, node::nGraph.NodeLike) = CPUKernelParams(node)
-_params(::nGraph.Backend{nGraph.GPU}, node::nGraph.NodeLike) = GPUKernelParams(node)
+params(::nGraph.Backend{nGraph.CPU}, node::nGraph.NodeLike) = CPUKernelParams(node)
+params(::nGraph.Backend{nGraph.GPU}, node::nGraph.NodeLike) = GPUKernelParams(node)
+params(x, node::XNode) = params(x, unx(node))
 
 # Cache object for recording seen kernels.
 struct CPUKernelParams{IS, OS, IT, OT, NIF}
@@ -22,15 +18,6 @@ struct CPUKernelParams{IS, OS, IT, OT, NIF}
     ismkl::Bool
     input_formats::NTuple{NIF, Int64}
 end
-
-# For
-filter_out_io(c::CPUKernelParams) = (
-    c.description,
-    c.ismkl,
-    c.input_formats,
-    c.input_types,
-    c.output_types
-)
 
 # Get the MKL format string for an op
 mkldnn_string(x) = last(split(nGraph.Lib.get_mkldnn_string(x), ":"))
