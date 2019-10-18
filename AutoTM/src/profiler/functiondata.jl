@@ -1,28 +1,62 @@
 ### Tools for dealing with multiple algorithms
-struct AlgorithmPerf
-    # The enum value used to select this algorithm.
-    #
-    # This is a detail of cuDNN
+"""
+Algorithm information for CUDNN algorithms that offer implementation selections.
+
+$(FIELDS)
+
+Methods: [`enums`](@ref), [`times`](@ref), [`timeat`](@ref), [`bytesat`](@ref)
+"""
+struct CUDNNAlgorithm
+    """
+    The enum value used to select this algorithm.
+    
+    This is a detail of cuDNN
+    """
     enum::UInt32
 
-    # The execution time of the algorithm - type match with the return value from the C++
-    # code.
+    """
+    The execution time of the algorithm - type match with the return value from the C++
+    code.
+    """
     time::Float32
 
-    # The number of bytes required for working space
+    "The number of bytes required for working space"
     bytes::UInt64
 end
 
-enums(a::Vector{AlgorithmPerf}) = map(x -> x.enum, a)
-times(a::Vector{AlgorithmPerf}) = map(x -> x.time, a)
-function timeat(a::Vector{AlgorithmPerf}, e::Integer)
-    ind = something(findfirst(x -> x.enum == e, a))
-    return a[ind].time
+"""
+$(SIGNATURES)
+
+Return the CUDNN algorithm enums from `algs`.
+"""
+enums(algs::Vector{CUDNNAlgorithm}) = map(x -> x.enum, algs)
+
+"""
+$(SIGNATURES)
+
+Return the CUDNN algorithm times from `algs`.
+"""
+times(algs::Vector{CUDNNAlgorithm}) = map(x -> x.time, algs)
+
+"""
+$(SIGNATURES)
+
+Return the time from `algs` for the algorithm witn enum encoding `enum`.
+"""
+function timeat(algs::Vector{CUDNNAlgorithm}, enum::Integer)
+    ind = something(findfirst(x -> x.enum == enum, algs))
+    return algs[ind].time
 end
 
-function bytesat(a::Vector{AlgorithmPerf}, e::Integer)
-    ind = something(findfirst(x -> x.enum == e, a))
-    return a[ind].bytes
+"""
+$(SIGNATURES)
+
+Return the working space requirement in bytes  from `algs` for the algorithm witn enum 
+encoding `enum`.
+"""
+function bytesat(algs::Vector{CUDNNAlgorithm}, e::Integer)
+    ind = something(findfirst(x -> x.enum == e, algs))
+    return algs[ind].bytes
 end
 
 #####
@@ -34,22 +68,56 @@ end
 
 const TENSOR_GROUP_NUM = Ref(0)
 
-# Make these mutable structs since we do mutate some of the fields and want to maintain
-# consistency in dictionaries.
+"""
+Wrapper around `TensorDescriptors` that includes extra metadata useful for generating
+the ILP.
+
+$(FIELDS)
+"""
 mutable struct XTensor{T}
     # Can possible map a single XTensor to multiple tensor descriptors if two args are 
     # merged.
+    "The `TensorDescriptor` that this `XTensor` represents."
     tensor::TensorDescriptor
+
+    """
+    Ordered collection of `XNode`s that reference this XTensor. The first entry is the 
+    producer of this tensor. All the rest read this tensor.
+    """
     users::Vector{T}
+
+    """
+    The role of the tensor.
+    """
     role::TensorRole
+
+    """
+    Flag for it this tensor is fixed at some specific location or not. Helpful for reducing
+    the number of variables generated for the ILP.
+
+    If the tensor is not fixed, this should be set to `nothing`.
+    """
     fixed_at::Union{Nothing,TensorLocation}
+
+    "Size of the tensor in bytes."
     size::Int
+
+    "Collection of `TensorLocations` that this tensor can occupy."
     locations::Vector{TensorLocation}
 
     # Metadata for parameters and results
+    "Indicate that all tensors in this group are actually the same tensor."
     inplace::Bool
+
+    """
+    Indicate the group number of this tensor. All tensors in the same group need to have the
+    same PMM/DRAM assignment.
+
+    For now, this should only be tweaked for IO tensors.
+    """
     group::Int
 end
+
 isfixed(x::XTensor) = !isnothing(x.fixed_at)
 fixed_location(x::XTensor) = something(x.fixed_at)
 
@@ -84,6 +152,14 @@ end
 isinplace(t::XTensor) = t.inplace
 makeinplace(t::XTensor) = (t.inplace = true)
 
+"""
+$(SIGNATURES)
+
+Merge `XTensor`s `a` and `b` into the same tensor group, which will be the smallest group
+of either `a` or `b`.
+
+CAUTION: Currently doesn't merge all tensors in `a`'s or `b`'s group.
+"""
 function Base.merge!(a::XTensor, b::XTensor)
     # Sanitize inputs.
     if size(unx(a)) != size(unx(b))
@@ -111,6 +187,11 @@ function Base.merge!(a::XTensor, b::XTensor)
     b.group = n
 end
 
+"""
+$(SIGNATURES)
+
+Merge all `XTensor`s in `A` into the same group.
+"""
 function Base.merge!(A::Vector{<:XTensor})
     # Find the lowest group number and merge everything with that.
     _, indmin = findmin(map(x -> x.group, A))    
@@ -118,7 +199,11 @@ function Base.merge!(A::Vector{<:XTensor})
     return nothing
 end
 
-# Infer the role of this tensor from its name
+"""
+$(SIGNATURES)
+
+Return the `TensorRole` of a `TensorDescriptor` from it's name.
+"""
 function role(tensor::TensorDescriptor)
     tensorname = nGraph.name(tensor)
     if isparam(tensorname) || isresult(tensorname)
@@ -136,12 +221,40 @@ isarg(t::XTensor) = t.role == Arg
 is_persistent(t::XTensor) = nGraph.is_persistent(unx(t))
 adduser!(t::XTensor, n) = !in(n, users(t)) && push!(t.users, n)
 
-users(t::XTensor) = t.users
-producer(t::XTensor) = first(t.users)
-consumer(t::XTensor) = last(t.users)
-Base.sizeof(t::XTensor) = t.size
+"""
+$(SIGNATURES)
 
-unx(t::XTensor) = t.tensor
+Return all users of `xtensor`.
+"""
+users(xtensor::XTensor) = xtensor.users
+
+"""
+$(SIGNATURES)
+
+Return the XNode the produces `xtensor`.
+"""
+producer(xtensor::XTensor) = first(xtensor.users)
+
+"""
+$(SIGNATURES)
+
+Return the last `XNode` that uses `xtensor`.
+"""
+consumer(xtensor::XTensor) = last(xtensor.users)
+
+"""
+$(SIGNATURES)
+
+Return the allocation size of `xtensor`.
+"""
+Base.sizeof(xtensor::XTensor) = xtensor.size
+
+"""
+$(SIGNATURES)
+
+Get the underlying `nGraph.TensorDescriptor` from `xtensor`.
+"""
+unx(xtensor::XTensor) = xtensor.tensor
 locations(t::XTensor) = t.locations
 nGraph.name(t::XTensor) = nGraph.name(t.tensor)
 Base.show(io::IO, x::XTensor) = println(io, "XTensor: ", nGraph.name(x))
@@ -151,21 +264,36 @@ getoffset(t::XTensor) = nGraph.get_pool_offset(t.tensor)
 ##### XNode
 #####
 
-mutable struct XNode
-    node::NodeDescriptor
-    index::Int
-    timings::Dict{IOConfig, Union{Float64, Vector{AlgorithmPerf}}}
-    outputs::Vector{XTensor}
-    inputs::Vector{XTensor}
-    newlist::Vector{XTensor}
-    freelist::Vector{XTensor}
-    # Metadata for grouping parameters together.
-    #
-    # Indicate if this node is an `inplace` parameter / result
-    inplace::Bool
+"""
+Wrapper for `nGraph.NodeDescriptor` with extra metadata.
 
-    # A collection of nodes that should be assigned to the same location as this node.
-    partners::Vector{XNode}
+$(FIELDS)
+"""
+mutable struct XNode
+    "The `NodeDescriptor` this `XNode` represents"
+    node::NodeDescriptor
+
+    "The execution number of this node in the topological sort of the graph"
+    index::Int
+
+    """
+    Timings for each possible `IOConfig` of the node. The collection of `IOConfigs` is
+    decided at runtime based off the possible locations of the input and output tensors
+    of this node.
+    """
+    timings::Dict{IOConfig, Union{Float64, Vector{CUDNNAlgorithm}}}
+
+    "Ordered collection of output tensors for this node."
+    outputs::Vector{XTensor}
+
+    "Ordered collection of input tensors for this node."
+    inputs::Vector{XTensor}
+
+    "Tensors who begin life at this node."
+    newlist::Vector{XTensor}
+
+    "Tensors that may be freed after the execution of this node."
+    freelist::Vector{XTensor}
 end
 
 function XNode(node::NodeDescriptor, index)
@@ -176,19 +304,17 @@ function XNode(node::NodeDescriptor, index)
     return XNode(
         node,
         index,
-        Dict{IOConfig, Union{Float64, Vector{AlgorithmPerf}}}(),
+        Dict{IOConfig, Union{Float64, Vector{CUDNNAlgorithm}}}(),
         XTensor[],
         XTensor[],
         XTensor[],
-        XTensor[],
-        false,
         XTensor[],
     )
 end
 
 _length_one(x) = (@assert(isone(length(x))); x)
 
-can_select_algo(n::XNode, c::IOConfig) = isa(n.timings[c], Vector{AlgorithmPerf})
+can_select_algo(n::XNode, c::IOConfig) = isa(n.timings[c], Vector{CUDNNAlgorithm})
 can_select_algo(n::XNode) = any(c -> can_select_algo(n, c), configs_for(n))
 
 settime!(n::XNode, c::IOConfig, time) = n.timings[c] = time

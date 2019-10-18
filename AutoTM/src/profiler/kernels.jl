@@ -225,7 +225,7 @@ function handle_algo_selection!(cache, backend::nGraph.Backend{nGraph.GPU}, data
                 # Convert to microseconds here to make it uniform with the rest of
                 # the timings.
                 algo_list = [
-                    AlgorithmPerf(e, 1000 * t, b) for (e,t,b) in zip(enums, times, bytes)
+                    CUDNNAlgorithm(e, 1000 * t, b) for (e,t,b) in zip(enums, times, bytes)
                 ]
 
                 cache[(kernel_params, config)] = algo_list

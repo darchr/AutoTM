@@ -9,6 +9,9 @@ using LightGraphs
 using JuMP
 using Gurobi
 
+# For when Gurobi dies
+using Cbc
+
 # Scheduling Heuristic
 include("affinity.jl")
 

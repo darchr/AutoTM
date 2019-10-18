@@ -1,5 +1,3 @@
-using Cbc
-
 # Scaling for numerical stability - may not be needed
 scale(x) = x / 10000
 

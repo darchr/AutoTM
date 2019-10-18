@@ -1,21 +1,41 @@
 # TODO: Hold on to constant parameters such as padding and stride for Convolutions
-params(::nGraph.Backend{nGraph.CPU}, node::nGraph.NodeLike) = CPUKernelParams(node)
-params(::nGraph.Backend{nGraph.GPU}, node::nGraph.NodeLike) = GPUKernelParams(node)
-params(x, node::XNode) = params(x, unx(node))
+"""
+$(SIGNATURES)
+
+Extract the kernel parameters from `node`.
+"""
+params(backend::nGraph.Backend{nGraph.CPU}, node::nGraph.NodeLike) = CPUKernelParams(node)
+params(backend::nGraph.Backend{nGraph.GPU}, node::nGraph.NodeLike) = GPUKernelParams(node)
+params(backend, node::XNode) = params(backend, unx(node))
 
 # Cache object for recording seen kernels.
+"""
+    CPUKernelParams
+
+Parameter set for nGraph CPU Kernels.
+
+$(METHODLIST)
+
+$(FIELDS)
+"""
 struct CPUKernelParams{IS, OS, IT, OT, NIF}
-    # The description of the op
+    "The description of the op."
     description::String
 
     # IO Sizes
+    "Sizes of the input tensors." 
     input_sizes::IS
+    "Sizes of the output tensors."
     output_sizes::OS
+    "Element types of the input tensors."
     input_types::IT
+    "Element types of the output tensors."
     output_types::OT
 
     # MKLDNN Formats
+    "Flag indicating if node is a `mkldnn` op."
     ismkl::Bool
+    "Enumj values of the tensor mkldnn input formats."
     input_formats::NTuple{NIF, Int64}
 end
 
@@ -56,14 +76,27 @@ function CPUKernelParams(node::nGraph.NodeLike)
 end
 
 ## GPU
+"""
+    GPUKernelParams
+
+Parameters for a GPU Kernel.
+
+$(METHODLIST)
+
+$(FIELDS)
+"""
 struct GPUKernelParams{IS, OS, IT, OT}
-    # The description of the op
+    "The description of the op."
     description::String
 
     # IO Sizes
+    "Sizes of the input tensors." 
     input_sizes::IS
+    "Sizes of the output tensors."
     output_sizes::OS
+    "Element types of the input tensors."
     input_types::IT
+    "Element types of the output tensors."
     output_types::OT
 end
 
@@ -109,7 +142,7 @@ end
 
 struct GPUKernelCache <: AbstractKernelCache
     file::String
-    cache::Dict{Tuple{GPUKernelParams, IOConfig}, Union{Float64, Vector{AlgorithmPerf}}}
+    cache::Dict{Tuple{GPUKernelParams, IOConfig}, Union{Float64, Vector{CUDNNAlgorithm}}}
 end
 
 # Method to determine if we can select the algorithm for this kernel.

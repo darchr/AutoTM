@@ -1,5 +1,5 @@
 # Timing methods for the whole function
-function gettime(fex::nGraph.FluxExecutable; timeout = Second(10), min_calls = 3)
+function gettime(fex::nGraph.FluxExecutable; timeout = Second(5), min_calls = 3)
     start = now()
     mintime = typemax(Float64)
     times = 1
@@ -56,7 +56,6 @@ function get_baseline_allocation(backend, f)
     return allocation_ref[], io_ref[]
 end
 
-
 _base_stats() = (
     io_size = Ref(0),
     default_alloc_size = Ref(0),
@@ -66,7 +65,7 @@ _base_stats() = (
 )
 
 """
-    compare(f, opt_iter; kw...)
+$(SIGNATURES)
 
 * `f`: A constructor function `f() -> fex, args` returning a `FluxExecutable` and a tuple
     of arguments to be passed to the executable.
@@ -142,84 +141,4 @@ end
 
 # Overload point for optimizers
 _compare!(args...; kw...) = error("_compare! not implemented for $(typeof.(args))")
-
-#####
-##### Intraction methods with the `rettuple` from `compare`
-#####
-
-dc(x) = all(isequal(DRAM), x)
-pmem_count(x) = count(isequal(PMEM), x)
-
-function gettimings(data)
-    timings = NamedTuple[]
-
-    for node in data.nodes
-        hasprofile(node) || continue
-        configs = collect(keys(node.timings))
-
-        dram_config = configs[findfirst(x -> dc(x.inputs) && dc(x.outputs), configs)]
-        input_dram = filter(x -> dc(x.inputs), configs) |> collect
-        output_dram = filter(x -> dc(x.outputs), configs) |> collect
-
-        # Find the configs with the most inputs in PMEM with all outputs in DRAM
-        # and find the config with the most outputs in PMEM with all inputs in DRAM
-        _, i = findmax(map(x -> pmem_count(x.inputs), output_dram))
-        max_input_pmem_config = output_dram[i]
-
-        _, i = findmax(map(x -> pmem_count(x.outputs), input_dram))
-        max_output_pmem_config = input_dram[i]
-
-        # Find the comfig with the most number of PMEM io
-        _, i = findmax(map(x -> pmem_count(x.inputs) + pmem_count(x.outputs), configs))
-        max_pmem_config = configs[i]
-
-        nt = (
-            description = node.description,
-            dram = minimum(node.timings[dram_config]),
-            pmem = minimum(node.timings[max_pmem_config]),
-            input_pmem = minimum(node.timings[max_input_pmem_config]),
-            output_pmem = minimum(node.timings[max_output_pmem_config]),
-        )
-        push!(timings, nt)
-    end
-    return timings
-end
-
-#####
-##### Compare the running times of a function with the predicted runtime.
-#####
-
-function compare_kernel_times(fex::nGraph.FluxExecutable, data::FunctionData)
-    kernel_times = read_timing_data(fex.ex.ngraph_function)
-    results = []
-
-    # Iterate through the kernels - find kernels with timing parameter, get their time,
-    # and then find what the expected runtime is.
-    for op in fex.ex.ngraph_function
-        op_wrapped = NodeDescriptor(op)
-        if !hasprofile(op_wrapped) || description(op_wrapped) == "Move"
-            continue
-        end
-
-        op_name = nGraph.name(op_wrapped)
-        config = getconfig(op)
-
-        # Get the actual run time.
-        index = findfirst(x -> x["name"] == op_name, kernel_times)
-        actual_runtime = kernel_times[index]["dur"]
-
-        # Get the expected run time
-        index = findfirst(isequal(op_wrapped), nodes(data))
-        expected_time = gettime(data, nodes(data, index), config)
-
-        push!(results, (
-            name = op_name,
-            config = config,
-            actual = actual_runtime,
-            expected = expected_time,
-            node = op_wrapped,
-        ))
-    end
-    return results
-end
 

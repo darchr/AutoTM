@@ -81,7 +81,6 @@ function execute(fns, opts, caches, backend, suffix = nothing; kw...)
 
             # Set the cache as well as how many times to replicate kernels for profiling
             cache = getcache(backend, cache),
-            kernel_tiling = TILING_FACTOR[cache],
             kw...
         )
     end
