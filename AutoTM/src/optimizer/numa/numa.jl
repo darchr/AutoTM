@@ -38,7 +38,6 @@ end
 ##### NUMA First-touch Implementation
 ######
 
-
 _ignore(t::String) = any(startswith.(Ref(t), ("Parameter", "Result", "Constant")))
 _ignore(t::TensorDescriptor) = _ignore(nGraph.name(t))
 

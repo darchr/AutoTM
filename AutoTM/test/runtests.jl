@@ -10,3 +10,4 @@ using Flux
 #####
 
 include("utils.jl")
+include("verify.jl")

@@ -8,9 +8,7 @@ using ProgressMeter
 using LightGraphs
 using JuMP
 using Gurobi
-
-# For when Gurobi dies
-using Cbc
+using DocStringExtensions
 
 # Scheduling Heuristic
 include("affinity.jl")

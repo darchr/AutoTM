@@ -3,18 +3,18 @@
     backend = AutoTM.Backend("CPU")
 
     #####
-    ##### Actualize, @deferred and friends
+    ##### Actualize, @closure and friends
     #####
 
     # Inference
-    f = AutoTM.@deferred AutoTM.Zoo.vgg19_inference(16)
+    f = AutoTM.@closure AutoTM.Zoo.vgg19_inference(16)
     @test isa(f(), AutoTM.Utils.Actualizer)
     F = AutoTM.actualize(backend, f)
 
     @test isa(F(), nGraph.TensorView)
 
     # Training
-    f = AutoTM.@deferred AutoTM.Zoo.vgg_training(AutoTM.Zoo.Vgg19(), 16)
+    f = AutoTM.@closure AutoTM.Zoo.vgg_training(AutoTM.Zoo.Vgg19(), 16)
     @test isa(f(), AutoTM.Utils.Actualizer)
     F = AutoTM.actualize(backend, f)
 

@@ -1,7 +1,7 @@
 module Utils
 
 # For compiling
-export Actualizer, actualize, @deferred
+export Actualizer, actualize, @closure
 
 # Exports from ioconfig
 export IOConfig, setindex, TensorLocation, DRAM, PMEM
@@ -103,12 +103,12 @@ A macro that wraps an expression in a closure for deferred calling.
 julia> y = 2
 2
 
-julia> f = AutoTM.@deferred y + 2;
+julia> f = AutoTM.@closure y + 2;
 
 julia> f()
 4
 """
-macro deferred(expr)
+macro closure(expr)
     return :(() -> $(esc(expr)))
 end
 

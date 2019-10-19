@@ -87,7 +87,13 @@ function run(backend, f, opt, cache, pipe)
 
     # Instantiate the ngraph function to run - go through `factory` so the node affinity
     # optimization pass runs
-    fex = AutoTM.Optimizer.factory(backend, f, opt; cache = cache)
+    fex = AutoTM.Optimizer.factory(
+        backend, 
+        f, 
+        opt; 
+        cache = cache, 
+        use_scratchpad = use_2lm_scratchpad
+    )
 
     # Sometimes, we might get a tuple back from factory - unpack it so we just get the 
     # FlusExecutable.

@@ -10,6 +10,7 @@
 *.pkl
 *.ipynb
 *.tex
+*.pdf
 
 cpu_codegen/
 gpu_codegen/

@@ -55,9 +55,11 @@ include("setup.jl")
 include("utils/utils.jl")
 include("profiler/profiler.jl")
 include("optimizer/optimizer.jl")
+include("verifier/verifier.jl")
 
 # Bring in some utils stuff
-using .Utils: Actualizer, actualize, @deferred
+using .Utils: Actualizer, actualize, @closure
+using .Verifier: verify
 
 #####
 ##### Predefined models

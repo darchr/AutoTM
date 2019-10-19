@@ -1,5 +1,11 @@
-# TODO: Revive
 module Verifier
+
+using Random
+using ..Utils
+using ..Optimizer
+
+using ProgressMeter: @showprogress
+using nGraph
 
 export verify
 
@@ -17,197 +23,92 @@ export verify
 # - Need to provide utility functions to extract the before/after parameters of each
 #   function for comparison.
 
-astuple(x::Tuple) = x
-astuple(x) = (x,)
+io_arrays(fex) = vflatten(nGraph.splat_inputs(fex), nGraph.splat_outputs(fex))
 
-"""
-- `f`: Function `() -> fex, args` that constructs a model and its arguments.
-
-- `pass`: Function `(FluxExecutable) -> FluxExecutable`: Takes an executable and returns
-    a modified executable that will be compared against the baseline executable.
-
-- `env`: Tuple of environmental "var"=>val to forward to the first call to `actualize`.
-    Main use is turning on CudaMallocManaged for comparison purposes.
-"""
-function verify(backend, f, opt; seed = 8086, env = (), iterations = 1, rtol = 0.05)
-    # Wrap the function in another function that sets the random seed - ensuring the same
-    # parameter values every time.
-    f_wrapped = (args...; kw...) -> (Random.seed!(seed); return f(args...; kw...))
-
-    # Get the reference inputs/outputs as well as the inputs from the optimized version.
-    #
-    # We expect all to be approximately the same.
-    # Call the GC inbetween to free resources. This is important when running on the GPU
-    # because otherwise, we'll get an `out of memory` error.
-    GC.gc()
-    ref_inputs, ref_outputs = _baseline(backend, f_wrapped, seed, env, iterations)
-    GC.gc()
-    #opt_inputs, opt_outputs = _baseline(backend, f_wrapped, seed, env, iterations)
-    opt_inputs, opt_outputs = _test(backend, f_wrapped, opt, seed, iterations)
-    GC.gc()
-
-    # Perform all of the checks on the inputs and outputs
-    passed = true 
-
-    # Check that the reference inputs and outputs are not NAN or Subnormal
-    for (i, (inputs, outputs)) in enumerate(zip(ref_inputs, ref_outputs))
-        if any(x -> any(isnan, x), inputs)
-            @error "Reference Inputs at Iteration $i are NaN!"
-            passed = false
-        end
-        if any(x -> any(issubnormal, x), inputs)
-            @error "Reference Inputs at Iteration $i are Subnormal!"
-            passed = false
-        end
-
-        if any(x -> any(isnan, x), outputs)
-            @error "Reference Inputs at Iteration $i are NaN!"
-            passed = false
-        end
-        if any(x -> any(issubnormal, x), outputs)
-            @error "Reference Inputs at Iteration $i are Subnormal!"
-            passed = false
-        end
-    end
-
-    # Check the inputs and outputs of the optimized results for NaN or Subnormal
-    for (i, (inputs, outputs)) in enumerate(zip(opt_inputs, opt_outputs))
-        if any(x -> any(isnan, x), inputs)
-            @error "Reference Inputs at Iteration $i are NaN!"
-            passed = false
-        end
-        if any(x -> any(issubnormal, x), inputs)
-            @error "Reference Inputs at Iteration $i are Subnormal!"
-            passed = false
-        end
-
-        if any(x -> any(isnan, x), outputs)
-            @error "Reference Inputs at Iteration $i are NaN!"
-            passed = false
-        end
-        if any(x -> any(issubnormal, x), outputs)
-            @error "Reference Inputs at Iteration $i are Subnormal!"
-            passed = false
-        end
-    end
-
-    # Check reference and optimized for approximate equality
-    iter = zip(ref_inputs, ref_outputs, opt_inputs, opt_outputs)
-    for (i, (ref_input, ref_output, opt_input, opt_output)) in enumerate(iter)
-        # Check outputs
-        for (r, o) in zip(ref_output, opt_output)
-            if !isapprox(r, o; rtol = rtol)
-                @error "Reference and Optimized Output not equal on iteration $i"
-                passed = false
-            end
-        end
-
-        # Check inputs
-        for (r, o) in zip(ref_input, opt_input)
-            if !isapprox(r, o; rtol = rtol)
-                @error "Reference and Optimized Input not equal on iteration $i"
-                printstyled("Reference Input"; color = :red)
-                display(r)
-                printstyled("Optimized Input"; color = :red)
-                display(o)
-                passed = false
-            end
-        end
-    end
-
-    if !passed
-        @error "Test did not pass for optimizer: $(typeof(opt))" opt
-    end
-
-    # Just show the losses
-    for (r,o) in zip(ref_outputs, opt_outputs)
-        printstyled("Reference Output"; color = :red)
-        display(first(r))
-        printstyled("Optimized Output"; color = :red)
-        display(first(o))
-    end
-
-    return passed
-end
-
-# Run the reference version of the network
-function _baseline(backend, f, seed, env, iterations)
-    fex = actualize(backend, f; env = env)
-
-    # Keep track on the CPU of the inputs and outputs across all iterations
-    inputs = []
-    outputs = []
-
-    for _ in 1:iterations
-        fex()
-        push!(inputs, read.(nGraph._splat_inputs(fex)))
-        push!(outputs, read.(nGraph._splat_outputs(fex)))
-    end
-    return inputs, outputs
-end
-
-function _test(backend, f, opt, seed, iterations)
-    fex = first(factory(backend, f, opt))
-
-    inputs = []
-    outputs = []
-
-    for _ in 1:iterations
-        fex()
-        push!(inputs, read.(nGraph._splat_inputs(fex)))
-        push!(outputs, read.(nGraph._splat_outputs(fex)))
-    end
-    return inputs, outputs
-end
-
-#####
-##### Track Training
-#####
-
-function track(backend, f, opts; 
-        seed = 8086, 
-        env = (), 
-        inner_iterations = 300, 
-        outer_iterations = 1,
+function verify(backend, f, opt, cache;
+        seed = 8086,
+        inner_iterations = 5,
+        outer_iterations = 2,
     )
 
-    # Wrapped the callable in a seed generator
-    f_wrapped = () -> (Random.seed!(seed); return f()) 
+    success = true
+    for i in 1:outer_iterations
+        println("Working on iteration $i")
 
-    results = Dict{Any, Any}()
+        # Create a new seed for each outer iteration.
+        outer_seed = rand(UInt64) 
 
-    # Run the baseline
-    for _ in 1:outer_iterations
-        f_wrapped2 = () -> actualize(backend, f; env = env)
-        GC.gc()
-        losses = _track(backend, f_wrapped2, inner_iterations)
+        # Wrapped the callable in a seed generator
+        seeded_f = @closure begin
+            Random.seed!(outer_seed)
+            return f()
+        end
+
+        # Create a baseline copy and an optimized copy of the function.
+        fex_baseline = actualize(backend, seeded_f)
+        fex_optimized = first(Optimizer.factory(
+            backend, 
+            seeded_f, 
+            opt; 
+            cache = cache, 
+            search_ratio = false
+        ))
+
+        # Sanity check - make sure all input tensors are equivalent.
+        # Because some output tensors may be undefined - don't check those until the
+        # executables are run for the first time.
+        for (a, b) in zip(nGraph.splat_inputs(fex_baseline), nGraph.splat_inputs(fex_optimized))
+            if parent(a) != parent(b)
+                equal_error(i, 0, seed, outer_seed)
+                return false
+            end
+        end
         
-        arr = get!(results, "baseline", [])
-        push!(arr, losses)
-    end
+        for j in 1:inner_iterations
+            println("    Inner Iteration $j")
 
-    # Run each of the optimizations
-    for opt in opts 
-        for _ in 1:outer_iterations
-            f_wrapped2 = () -> first(factory(backend, f, opt))
-            GC.gc() 
-            losses = _track(backend, f_wrapped2, inner_iterations)
-            
-            arr = get!(results, opt, [])
-            push!(arr, losses)
+            # Run both functions - make sure ALL input and output tensors match each itertion.
+            @time fex_baseline() 
+            @time fex_optimized()
+            for (a,b) in zip(io_arrays(fex_baseline), io_arrays(fex_optimized))
+                # Check for NaN's
+                if any(isnan, parent(a)) || any(isnan, parent(b))
+                    nan_error(i, j, seed, outer_seed)
+                    return false
+                end
+
+                # Check for Subnormal
+                if any(issubnormal, parent(a)) || any(issubnormal, parent(b))
+                    subnormal_error(i, j, seed, outer_seed)
+                    return false
+                end
+
+                # Check equality
+                if parent(a) != parent(b)
+                    equal_error(i, j, seed, outer_seed)
+                    return false
+                end
+            end
         end
     end
-
-    return results
+    return true
 end
 
-function _track(backend, f, iterations)
-    fex = f()
-    results = Vector{Float32}(undef, iterations)
-    @showprogress 1 for i in 1:iterations
-        results[i] = read(fex())[]
-    end
-    return results
+nan_error(x...) = generic_error("NaN Values", x...)
+subnormal_error(x...) = generic_error("Subnormal Values", x...)
+equal_error(x...) = generic_error("Match Error", x...)
+
+function generic_error(prefix, outer_iteration, inner_iteration, seed, outer_seed)
+    message = """
+    $prefix
+    Outer Iteration: $outer_iteration
+    Inner Iteration: $inner_iteration
+    Master seed: $seed
+    Seed for this round: $outer_seed
+    """
+    printstyled(message; color = :red)
+    println()
+    return nothing
 end
 
 end

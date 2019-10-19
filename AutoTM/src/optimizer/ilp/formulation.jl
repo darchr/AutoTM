@@ -132,22 +132,22 @@ descriptor(F::Frame, tensor::XTensor) = F.modeltype.descriptors[tensor]
 #####
 
 # For procedurally building JuMP expressions for the ILP model
-const _expr_type = typeof(AffExpr())
+const AffExprType = typeof(AffExpr())
 
 function create_model(modeltype::ILPHolder, profile_data::FunctionData)
     preprocess!(modeltype, profile_data)
 
     # Start with an empty model that we will progressively build.
-    #model = Model(with_optimizer(Gurobi.Optimizer; TimeLimit = 3600, MIPGap = 0.01))
-    model = Model(with_optimizer(Cbc.Optimizer))
+    model = Model(with_optimizer(Gurobi.Optimizer; TimeLimit = 3600, MIPGap = 0.01))
+    #model = Model(with_optimizer(Cbc.Optimizer))
     
     frame = Frame(modeltype, model, profile_data)
 
     # Going deep into JuMP here - the idea is to build the objective as a bunch of aff exprs
     # and eventually combine all of them together.
-    model[:node_times] = Dict{String, _expr_type}()
-    model[:tensor_async] = Dict{String, _expr_type}()
-    model[:tensor_sync] = _expr_type()
+    model[:node_times] = Dict{String, AffExprType}()
+    model[:tensor_async] = Dict{String, AffExprType}()
+    model[:tensor_sync] = AffExprType()
 
     add_tensors!(frame)
     add_nodes!(frame)
@@ -189,9 +189,9 @@ function add_tensors!(frame::Frame)
     data = frame.profile_data
     modeltype = frame.modeltype
 
-    for tensor in fixed_tensors(frame)
-        println("Found a fixed tensor: ", nGraph.name(tensor))
-    end
+    # for tensor in fixed_tensors(frame)
+    #     println("Found a fixed tensor: ", nGraph.name(tensor))
+    # end
 
     # Create variables for the tensors and add flow constraints to the to the tensor graphs
     @variable(frame.model,
@@ -432,7 +432,7 @@ function add_movement_formulations!(frame::Frame)
 
         # Create read variables expressions
         for e in async_reads
-            _expr = get!(tensor_async_dict, nGraph.name(kernels[e]), _expr_type())
+            _expr = get!(tensor_async_dict, nGraph.name(kernels[e]), AffExprType())
             move_var = tensor_graphs[tensor, e]
             add_to_expression!(_expr, read_cost_async, move_var)
             dict_push!(frame.modeltype.async_move_vars, kernels[e], move_var)
@@ -440,7 +440,7 @@ function add_movement_formulations!(frame::Frame)
 
         # Create write variables.
         for e in async_writes
-            _expr = get!(tensor_async_dict, nGraph.name(kernels[e]), _expr_type())
+            _expr = get!(tensor_async_dict, nGraph.name(kernels[e]), AffExprType())
             move_var = tensor_graphs[tensor, e]
             add_to_expression!(_expr, write_cost_async, move_var)
             dict_push!(frame.modeltype.async_move_vars, kernels[e], move_var)
@@ -537,7 +537,7 @@ function add_nodes!(F::Frame)
 
         for config in configs
             # Create an expression for the input and output locations
-            expr = _expr_type()
+            expr = AffExprType()
             iter = Iterators.flatten((
                 zip(config.inputs, inputs(node)),
                 zip(config.outputs, outputs(node))
@@ -575,7 +575,7 @@ function add_nodes!(F::Frame)
         @constraint(F.model, sum(vars[config] for config in configs) == 1)
 
         # Create an expression for this node's expected running time.
-        node_times = _expr_type()
+        node_times = AffExprType()
         for config in configs
             # If we can select the algorithm for this node, we need to generate some more
             # variables to "AND" the config with the algorithm selection to ensure that
@@ -632,7 +632,7 @@ function add_constraints!(F::Frame)
         else
             # If we can't select the algorithm, just create an empty expression that will
             # be hapily optimized away when we create the size constraint.
-            algo_expr = _expr_type()
+            algo_expr = AffExprType()
         end
 
         if !isempty(tensors)

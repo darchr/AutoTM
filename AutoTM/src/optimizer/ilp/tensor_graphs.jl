@@ -20,15 +20,23 @@ isasync(et::EdgeType) = in(et, (EDGE_ASYNC_READ, EDGE_ASYNC_WRITE))
 @enum MoveType MOVE_NONE MOVE_SYNC MOVE_ASYNC
 
 # Metadata to assign to each node in the liveness graph for tensors.
+"""
+    VertexMetadata
+
+Metadata associated with the vertex of the tensor graph.
+
+$(FIELDS)
+"""
 struct VertexMetadata
-    # The gadget that this vertex belongs to. Used for edge generation.
+    "The gadget that this vertex belongs to. Used for edge generation."
     gadget::Int
-    # The op index that this gadget refers to
+    "The op index that this gadget refers to."
     op::XNode
-    # Where the vertex lives
+    "Where the vertex lives."
     location::VertexLocation
-    # What type of moves this vertex allows
+    "What type of moves this vertex allows."
     move_type::MoveType
+    "`true` is this vertex is a user of the tensor in whose graph this vertex appear."
     isuser::Bool
     vertex_number::Int
 end
@@ -42,7 +50,12 @@ isasync(em::EdgeMetadata) = isasync(em.edgetype)
 ##### Preprocessing
 #####
 
-liverange(t::XTensor) = (producer(t).index):(consumer(t).index)
+"""
+$(SIGNATURES) -> UnitRange{Int64}
+
+Return a range of indices corresponding to nodes during which `xtensor` is live.
+"""
+liverange(xtensor::XTensor) = (producer(xtensor).index):(consumer(xtensor).index)
 
 function _getgadgets(A::ILPHolder{Asynchronous}, data::FunctionData, t::XTensor)
     range = liverange(t)
