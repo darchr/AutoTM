@@ -3,7 +3,7 @@
 # Start julia with
 #     sudo ~/julia-1.2.0/bin/julia
 #
-# -- We must not run under "sudo", but `counters.jl` must run under "sudo" in order to 
+# -- We must not run under "sudo", but `counters.jl` must run under "sudo" in order to
 # sample the counters.
 #
 # The script will run through a collection of AutoTM experiments to run, and before running
@@ -50,14 +50,17 @@ function parse_commandline()
         "--workload"
             required = true
             arg_type = String
+            nargs = '+'
             range_tester = x -> in(x, WORKLOADS)
             help = """
             Select the workload to run. Options: $(join(WORKLOADS, ", ", ", and "))
+            Multiple Options Supported.
             """
 
         "--counter_type"
             arg_type = String
-            default = "rw"   
+            default = ["rw"]
+            nargs = '+'
             # Make sure argument is one of the tag groups we know about.
             range_tester = x -> in(x, ("rw", "tags", "queue"))
             help = """
@@ -114,7 +117,7 @@ end
 
 function make_filename(workload, mode, counter_type, use_2lm_scratchpad::Bool)
     # Join the first three arguments together.
-    # If we're in 2LM mode, check to see if we're using the scratchpad. If so, also 
+    # If we're in 2LM mode, check to see if we're using the scratchpad. If so, also
     # indicate that in the path name.
     str = join((workload, mode, counter_type), "_")
     if mode == "2lm" && use_2lm_scratchpad
@@ -122,7 +125,7 @@ function make_filename(workload, mode, counter_type, use_2lm_scratchpad::Bool)
     end
 
     # Append the extension.
-    return "data/$(str).jls" 
+    return "data/$(str).jls"
 end
 
 maybeunwrap(x) = x
@@ -174,27 +177,36 @@ function main()
     # First - parse commandline arguments.
     parsed_args = parse_commandline()
 
-    # Extract the experiments to run.
-    f = get_workload(parsed_args["workload"])
-    opt = get_optimizer(parsed_args["mode"])
-    filepath = make_filename(
-        parsed_args["workload"],
-        parsed_args["mode"],
-        parsed_args["counter_type"],
-        parsed_args["use_2lm_scratchpad"]
-    ) 
-
+    # Setup some static data structures
     backend = AutoTM.Backend("CPU")
     pipe = connect(pipe_name)
     cache = AutoTM.Profiler.CPUKernelCache(AutoTM.Experiments.SINGLE_KERNEL_PATH)
 
-    # Configure `counters.jl`
-    println(pipe, "sampletime $(parsed_args["sampletime"])")
-    println(pipe, "filepath $filepath")
-    println(pipe, "counters $(parsed_args["counter_type"])")
+    workloads = parsed_args["workload"]
+    counter_sets = parsed_args["counter_type"]
 
-    # Run
-    run(backend, f, opt, cache, pipe, parsed_args["use_2lm_scratchpad"])
+    for workload in workloads, counter_set in counter_sets
+        println("Running $workload")
+        println("Counter Set: $counter_set")
+
+        f = get_workload(workload)
+        opt = get_optimizer(parsed_args["mode"])
+        filepath = make_filename(
+            workload,
+            parsed_args["mode"],
+            counter_set,
+            parsed_args["use_2lm_scratchpad"]
+        )
+
+        # Configure `counters.jl`
+        println(pipe, "sampletime $(parsed_args["sampletime"])")
+        println(pipe, "filepath $filepath")
+        println(pipe, "counters $(parsed_args["counter_type"])")
+
+        # Run
+        run(backend, f, opt, cache, pipe, parsed_args["use_2lm_scratchpad"])
+    end
+
     return nothing
 end
 

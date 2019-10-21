@@ -26,7 +26,7 @@ function sample(sock, sampletime, filepath, counter_tuple)
     # The PID is not needed for this snooping since we're monitoring the entire system,
     # so just pass the current PID
     local data
-    @sync begin 
+    @sync begin
         # Spawn a task to sample the buffer and notify when a `stop` command is reached
         canexit = false
         @async begin
@@ -44,7 +44,7 @@ function sample(sock, sampletime, filepath, counter_tuple)
         data = SystemSnoop.snoop(SystemSnoop.SnoopedProcess(getpid()), measurements) do snooper
             while true
                 # Sleep until it's time to sample.
-                sleep(sampler) 
+                sleep(sampler)
 
                 # If something goes wrong during measurement, `measure` will return `false`.
                 # We handle that gracefully by performing an early exit.
@@ -90,7 +90,7 @@ while true
     #
     # Very simple and stupid interface.
     while isopen(sock)
-        cmd = readline(sock) 
+        cmd = readline(sock)
         if cmd == "start"
             sample(sock, sampletime, filepath, counter_tuple)
 
@@ -111,7 +111,7 @@ while true
         #   "rw" - read and write counters
         #   "tags" - cache tag counters
         elseif startswith(cmd, "counters")
-            payload = last(split(cmd))   
+            payload = last(split(cmd))
             if payload == "rw"
                 counter_tuple = Snooper.DEFAULT_NT
             elseif payload == "tags"
@@ -133,7 +133,7 @@ while true
             end
 
         # Break out of loop
-        elseif cmd == "exit" 
+        elseif cmd == "exit"
             println("Exiting")
             exit()
 
