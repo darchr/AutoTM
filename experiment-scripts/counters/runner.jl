@@ -3,7 +3,8 @@
 # Start julia with
 #     sudo ~/julia-1.2.0/bin/julia
 #
-# -- We must run under `sudo` to have access to the performance counters.
+# -- We must not run under "sudo", but `counters.jl` must run under "sudo" in order to 
+# sample the counters.
 #
 # The script will run through a collection of AutoTM experiments to run, and before running
 # will invoke a job on the second process to start sampling.
@@ -12,26 +13,6 @@
 # at which point the secondary process will stop sampling and serialize its sampled data
 # to a filepath provided by the master worker.
 
-#####
-##### Setup
-#####
-
-# Select which set of tests to run
-#mode = "test"
-mode = "2lm"
-#mode = "1lm"
-
-# How often to sample counters
-sampletime = 1      # Seconds
-
-# Which set of counters to use
-# - `rw`: Collect read/write counters for DRAM and PMM
-# - `tags`: Collect tag check metrics and PMM write queue occupancy
-counters = "rw"
-#counters = "tags"
-
-# Flag on if to use a `scratchpad` during 2LM execution.
-use_2lm_scratchpad = true
 
 # The name of the Pipe to use for communication with `counter.jl`
 pipe_name = "counter_pipe"
@@ -45,71 +26,142 @@ using Pkg
 Pkg.activate("../../AutoTM")
 using Dates
 using AutoTM
+using ArgParse
 using Sockets
+
+const WORKLOADS = [
+    "test_vgg",
+    "large_vgg",
+    "large_resnet",
+    "large_densenet",
+    "large_inception",
+]
+
+# Entrypoint argument parsing
+function parse_commandline()
+    s = ArgParseSettings()
+    @add_arg_table s begin
+        "--mode"
+            required = true
+            arg_type = String
+            range_tester = x -> in(x, ("1lm", "2lm"))
+            help = "Select between [1lm] or [2lm]"
+
+        "--workload"
+            required = true
+            arg_type = String
+            range_tester = x -> in(x, WORKLOADS)
+            help = """
+            Select the workload to run. Options: $(join(WORKLOADS, ", ", ", and "))
+            """
+
+        "--counter_type"
+            arg_type = String
+            default = "rw"   
+            # Make sure argument is one of the tag groups we know about.
+            range_tester = x -> in(x, ("rw", "tags", "queue"))
+            help = """
+            Select which sets of counters to use.
+            [rw]: Use DRAM/PMEM read/write counters
+            [tags]: Return dirty/clean miss count and hit count.
+            [queue]: Return the read and write queue occupancy for PMM.
+            """
+
+        "--use_2lm_scratchpad"
+            action = :store_true
+            help = "Use a dedicated scratchpad for short lived tensors in 2LM mode."
+
+        "--sampletime"
+            arg_type = Int
+            default = 1
+            help = "The number of seconds between sampling the hardware counters."
+    end
+
+    return parse_args(s)
+end
 
 #####
 ##### Here's the main sampling script.
 #####
 
-if mode == "test"
-    trials = [
-        (AutoTM.Experiments.conventional_inception(), "test_vgg.jls")
-    ]
-    opt = AutoTM.Optimizer.Optimizer2LM()
-    cache = AutoTM.Profiler.CPUKernelCache(AutoTM.Experiments.SINGLE_KERNEL_PATH)
-elseif mode == "1lm"
-    trials = [
-        #(AutoTM.Experiments.large_inception(),  "inception_1lm.jls"),
-        (AutoTM.Experiments.large_vgg(),        "vgg_1lm.jls"),
-        (AutoTM.Experiments.large_resnet(),     "resnet_1lm.jls"),
-        (AutoTM.Experiments.large_densenet(),   "densenet_1lm.jls"),
-    ]
-    opt = AutoTM.Optimizer.Synchronous(185_000_000_000)
-    cache = AutoTM.Profiler.CPUKernelCache(AutoTM.Experiments.SINGLE_KERNEL_PATH)
-elseif mode == "2lm"
-    trials = [
-        (AutoTM.Experiments.large_inception(),  "inception_scratchpad_2lm.jls"),
-        (AutoTM.Experiments.large_vgg(),        "vgg_scratchpad_2lm.jls"),
-        (AutoTM.Experiments.large_resnet(),     "resnet_scratchpad_2lm.jls"),
-        (AutoTM.Experiments.large_densenet(),   "densenet_scratchpad_2lm.jls"),
-    ]
-    opt = AutoTM.Optimizer.Optimizer2LM()
-    cache = nothing
-else
-    throw(error("Don't under stand mode $mode"))
+function get_optimizer(mode)
+    if mode == "1lm"
+        opt = AutoTM.Optimizer.Synchronous(185_000_000_000)
+    elseif mode == "2lm"
+        opt = AutoTM.Optimizer.Optimizer2LM()
+    else
+        throw(ArgumentError("Unknown mode $mode"))
+    end
+    return opt
+end
+
+function get_workload(workload)
+    if workload == "test_vgg"
+        f = AutoTM.Experiments.test_vgg()
+    elseif workload == "large_vgg"
+        f = AutoTM.Experiments.large_vgg()
+    elseif workload == "large_inception"
+        f = AutoTM.Experiments.large_inception()
+    elseif workload == "large_resnet"
+        f = AutoTM.Experiments.large_resnet()
+    elseif workload == "large_densenet"
+        f = AutoTM.Experiments.large_densenet()
+    else
+        throw(ArgumentError("Unknown workload $workload"))
+    end
+    return f
+end
+
+function make_filename(workload, mode, counter_type, use_2lm_scratchpad::Bool)
+    # Join the first three arguments together.
+    # If we're in 2LM mode, check to see if we're using the scratchpad. If so, also 
+    # indicate that in the path name.
+    str = join((workload, mode, counter_type), "_")
+    if mode == "2lm" && use_2lm_scratchpad
+        str = str * "_scratchpad"
+    end
+
+    # Append the extension.
+    return "data/$(str).jls" 
 end
 
 maybeunwrap(x) = x
 maybeunwrap(x::Tuple) = first(x)
 
 # Hoist into a function so GC works correctly
-function run(backend, f, opt, cache, pipe)
+function run(backend, f, opt, cache, pipe, use_2lm_scratchpad)
+    # Build up a list of optional keyword arguments.
+    kw = []
+    if use_2lm_scratchpad
+        push!(kw, :use_scratchpad => true)
+    end
 
     # Instantiate the ngraph function to run - go through `factory` so the node affinity
     # optimization pass runs
+
     fex = AutoTM.Optimizer.factory(
-        backend, 
-        f, 
-        opt; 
-        cache = cache, 
-        use_scratchpad = use_2lm_scratchpad
+        backend,
+        f,
+        opt;
+        cache = cache,
+        kw...
     )
 
-    # Sometimes, we might get a tuple back from factory - unpack it so we just get the 
+    # Sometimes, we might get a tuple back from factory - unpack it so we just get the
     # FlusExecutable.
     fex = maybeunwrap(fex)
 
     # Run the function once to warm it up.
-    @time fex() 
+    @time fex()
 
     # Invoke the sampling subprocess
     println("Invoking Sampler")
     println(pipe, "start")
 
-    # Sleep for 5 seconds to give the subprocess time to startup and invoke the 
+    # Sleep for 5 seconds to give the subprocess time to startup and invoke the
     # FluxExecutable again.
     sleep(5)
-    @time fex() 
+    @time fex()
     sleep(5)
 
     # Signal worker process that we're done by writing to the RemoteChannel
@@ -117,21 +169,34 @@ function run(backend, f, opt, cache, pipe)
     println("Successfully Ran Worker Process")
 end
 
-# Try running things - see if it works
-backend = AutoTM.Backend("CPU")
+# Main function.
+function main()
+    # First - parse commandline arguments.
+    parsed_args = parse_commandline()
 
-pipe = connect(pipe_name)
+    # Extract the experiments to run.
+    f = get_workload(parsed_args["workload"])
+    opt = get_optimizer(parsed_args["mode"])
+    filepath = make_filename(
+        parsed_args["workload"],
+        parsed_args["mode"],
+        parsed_args["counter_type"],
+        parsed_args["use_2lm_scratchpad"]
+    ) 
 
-for trial in trials
-    # Unpack trial struct
-    f = trial[1]
-    filepath = trial[2]
+    backend = AutoTM.Backend("CPU")
+    pipe = connect(pipe_name)
+    cache = AutoTM.Profiler.CPUKernelCache(AutoTM.Experiments.SINGLE_KERNEL_PATH)
 
     # Configure `counters.jl`
-    println(pipe, "sampletime $sampletime")
+    println(pipe, "sampletime $(parsed_args["sampletime"])")
     println(pipe, "filepath $filepath")
-    println(pipe, "counters $counters")
+    println(pipe, "counters $(parsed_args["counter_type"])")
 
     # Run
-    run(backend, f, opt, cache, pipe)
+    run(backend, f, opt, cache, pipe, parsed_args["use_2lm_scratchpad"])
+    return nothing
 end
+
+# Invoke the main function.
+main()

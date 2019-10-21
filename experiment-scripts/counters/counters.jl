@@ -71,6 +71,9 @@ end
 # Create a NamedPipe to listen for commands from the other process.
 server = listen("counter_pipe")
 
+# Make readable and writeable by non-sudo processes
+chmod("counter_pipe", 0x666)
+
 while true
     sock = accept(server)
 
@@ -116,7 +119,14 @@ while true
                     tag_hit = Snooper.tagchk_hit(),
                     tag_miss_clean = Snooper.tagchk_miss_clean(),
                     tag_miss_dirty = Snooper.tagchk_miss_dirty(),
+                    all_pmm_cmd = Snooper.all_pmm_cmd(),
+                )
+            elseif payload == "queues"
+                counter_tuple = (
+                    unc_clocks = Snooper.unc_clocks(),
+                    pmm_rq = Snooper.pmm_rw(),
                     pmm_wq = Snooper.pmm_wq(),
+                    all_pmm_cmd = Snooper.all_pmm_cmd(),
                 )
             else
                 println("Unknown Counter Payload: $payload")
