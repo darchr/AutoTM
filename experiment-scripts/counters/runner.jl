@@ -62,12 +62,14 @@ function parse_commandline()
             default = ["rw"]
             nargs = '+'
             # Make sure argument is one of the tag groups we know about.
-            range_tester = x -> in(x, ("rw", "tags", "queue"))
+            range_tester = x -> in(x, ("rw", "tags", "queues", "insert-check"))
             help = """
             Select which sets of counters to use.
             [rw]: Use DRAM/PMEM read/write counters
             [tags]: Return dirty/clean miss count and hit count.
             [queue]: Return the read and write queue occupancy for PMM.
+            [insert-check]: Check semantic difference of read/write insert vs read/write
+            command counters.
             """
 
         "--use_2lm_scratchpad"
@@ -132,10 +134,14 @@ maybeunwrap(x) = x
 maybeunwrap(x::Tuple) = first(x)
 
 # Hoist into a function so GC works correctly
-function run(backend, f, opt, cache, pipe, use_2lm_scratchpad)
+function run(backend, workload, cache, pipe, parsed_args)
+    # Get workload and optimizer.
+    f = get_workload(workload)
+    opt = get_optimizer(parsed_args["mode"])
+
     # Build up a list of optional keyword arguments.
     kw = []
-    if use_2lm_scratchpad
+    if parsed_args["use_2lm_scratchpad"]
         push!(kw, :use_scratchpad => true)
     end
 
@@ -157,19 +163,35 @@ function run(backend, f, opt, cache, pipe, use_2lm_scratchpad)
     # Run the function once to warm it up.
     @time fex()
 
-    # Invoke the sampling subprocess
-    println("Invoking Sampler")
-    println(pipe, "start")
+    # Reuse the initial compilation for all counter sets
+    for counter_set in parsed_args["counter_type"]
+        println("Counter Set: $counter_set")
+        filepath = make_filename(
+            workload,
+            parsed_args["mode"],
+            counter_set,
+            parsed_args["use_2lm_scratchpad"]
+        )
 
-    # Sleep for 5 seconds to give the subprocess time to startup and invoke the
-    # FluxExecutable again.
-    sleep(5)
-    @time fex()
-    sleep(5)
+        # Configure `counters.jl`
+        println(pipe, "filepath $filepath")
+        println(pipe, "counters $(counter_set)")
 
-    # Signal worker process that we're done by writing to the RemoteChannel
-    println(pipe, "stop")
-    println("Successfully Ran Worker Process")
+        # Invoke the sampling subprocess
+        println("Invoking Sampler")
+        println(pipe, "start")
+
+        # Sleep for 5 seconds to give the subprocess time to startup and invoke the
+        # FluxExecutable again.
+        sleep(5)
+        @time fex()
+        sleep(5)
+
+        # Signal worker process that we're done by writing to the RemoteChannel
+        println(pipe, "stop")
+        println("Successfully Ran Worker Process")
+    end
+    return nothing
 end
 
 # Main function.
@@ -183,28 +205,13 @@ function main()
     cache = AutoTM.Profiler.CPUKernelCache(AutoTM.Experiments.SINGLE_KERNEL_PATH)
 
     workloads = parsed_args["workload"]
-    counter_sets = parsed_args["counter_type"]
+    println(pipe, "sampletime = $(parsed_args["sampletime"])")
 
-    for workload in workloads, counter_set in counter_sets
+    for workload in workloads
         println("Running $workload")
-        println("Counter Set: $counter_set")
-
-        f = get_workload(workload)
-        opt = get_optimizer(parsed_args["mode"])
-        filepath = make_filename(
-            workload,
-            parsed_args["mode"],
-            counter_set,
-            parsed_args["use_2lm_scratchpad"]
-        )
-
-        # Configure `counters.jl`
-        println(pipe, "sampletime $(parsed_args["sampletime"])")
-        println(pipe, "filepath $filepath")
-        println(pipe, "counters $(parsed_args["counter_type"])")
 
         # Run
-        run(backend, f, opt, cache, pipe, parsed_args["use_2lm_scratchpad"])
+        run(backend, workload, cache, pipe, parsed_args)
     end
 
     return nothing

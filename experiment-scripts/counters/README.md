@@ -31,3 +31,10 @@ Therefor, two separate processes are used - one monitoring the performance count
 The two processes communicate through a NamedPipe.
 Since we're using two processes, and performance counters need `sudo` to work correctly,
     we can run the performance counter code under `sudo` and the other code as a normal user.
+
+## Test Command
+
+To test if everything is working.
+```
+julia --color=yes runner.jl --mode=1lm --workload=test_vgg --counter_type rw queue
+```

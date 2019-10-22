@@ -63,6 +63,9 @@ function sample(sock, sampletime, filepath, counter_tuple)
 
     # Serialize the data to the given filepath and return a value to indicate to the
     # master process that we've completed.
+    dir = dirname(filepath)
+    !ispath(dir) && mkpath(dir)
+
     serialize(filepath, data)
     return true
 end
@@ -92,7 +95,10 @@ while true
     while isopen(sock)
         cmd = readline(sock)
         if cmd == "start"
+            # Guard with GC calls to clean up PCM objects.
+            GC.gc()
             sample(sock, sampletime, filepath, counter_tuple)
+            GC.gc()
 
         # Key: "sampletime"
         # Payload: Integer numer of seconds
@@ -112,25 +118,42 @@ while true
         #   "tags" - cache tag counters
         elseif startswith(cmd, "counters")
             payload = last(split(cmd))
+
+            # Read and Write counters
             if payload == "rw"
                 counter_tuple = Snooper.DEFAULT_NT
+
+            # Counters for the
             elseif payload == "tags"
                 counter_tuple = (
                     tag_hit = Snooper.tagchk_hit(),
                     tag_miss_clean = Snooper.tagchk_miss_clean(),
                     tag_miss_dirty = Snooper.tagchk_miss_dirty(),
-                    all_pmm_cmd = Snooper.all_pmm_cmd(),
+                    pmm_underfill_read = Snooper.pmm_underfill_rd(),
                 )
+
             elseif payload == "queues"
                 counter_tuple = (
                     unc_clocks = Snooper.unc_clocks(),
-                    pmm_rq = Snooper.pmm_rw(),
+                    pmm_rq = Snooper.pmm_rq(),
                     pmm_wq = Snooper.pmm_wq(),
-                    all_pmm_cmd = Snooper.all_pmm_cmd(),
+                    pmm_underfill_read = Snooper.pmm_underfill_rd(),
+                )
+
+            # Check the functional difference between the `read command` and
+            # `read request insert` counters ...
+            elseif payload == "insert-check"
+                counter_tuple = (
+                    pmm_read_cmd = Snooper.pmm_read_cmd(),
+                    pmm_read_insert = Snooper.pmm_read_insert(),
+                    pmm_write_cmd = Snooper.pmm_write_cmd(),
+                    pmm_write_insert = Snooper.pmm_write_insert(),
                 )
             else
                 println("Unknown Counter Payload: $payload")
             end
+
+            println("Setting Counter Tuple: $counter_tuple")
 
         # Break out of loop
         elseif cmd == "exit"
