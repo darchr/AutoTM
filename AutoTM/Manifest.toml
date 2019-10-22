@@ -24,6 +24,12 @@ git-tree-sha1 = "dab25d711a1dedb707a55dbc1eb9fd578f76ff32"
 uuid = "dce04be8-c92d-5529-be00-80e4d2c0e197"
 version = "1.0.1"
 
+[[ArgParse]]
+deps = ["Compat", "Test", "TextWrap"]
+git-tree-sha1 = "14d5789a99e6bea3e258d668ec09359a9feaf2d1"
+uuid = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
+version = "0.6.2"
+
 [[ArnoldiMethod]]
 deps = ["DelimitedFiles", "LinearAlgebra", "Random", "SparseArrays", "StaticArrays", "Test"]
 git-tree-sha1 = "2b6845cea546604fb4dca4e31414a6a59d39ddcd"
@@ -96,12 +102,6 @@ version = "0.5.0"
 git-tree-sha1 = "da85d135b6048d3e78603e277cf9a4609f7e0673"
 uuid = "7057c7e9-c182-5462-911a-8362d720325c"
 version = "0.2.6"
-
-[[Cbc]]
-deps = ["BinaryProvider", "Libdl", "MathOptInterface", "MathProgBase", "SparseArrays", "Test"]
-git-tree-sha1 = "c3a18f5f6ec5996354bea0cf6c5a950a26e86b7d"
-uuid = "9961bab8-2fa3-5c5a-9d89-47fab24efd76"
-version = "0.6.3"
 
 [[CodecZlib]]
 deps = ["BinaryProvider", "Libdl", "TranscodingStreams"]
@@ -549,6 +549,12 @@ version = "0.1.0"
 [[Test]]
 deps = ["Distributed", "InteractiveUtils", "Logging", "Random"]
 uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[[TextWrap]]
+deps = ["Compat", "Test"]
+git-tree-sha1 = "8355cc559e85469cd4dbe927c375f61d3750e002"
+uuid = "b718987f-49a8-5099-9789-dcd902bef87d"
+version = "0.3.0"
 
 [[TimerOutputs]]
 deps = ["Crayons", "Printf", "Test", "Unicode"]

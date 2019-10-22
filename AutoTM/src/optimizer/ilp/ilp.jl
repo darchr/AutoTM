@@ -26,7 +26,7 @@ function (O::ILPOptimizer{Rational{Int64}})(data, backend::nGraph.Backend)
 end
 
 function (O::ILPOptimizer{Int64})(data, backend::nGraph.Backend)
-    x = fill(round(Int, getlimit(M) / 1E6), size(nodes(data)))
+    x = fill(round(Int, getlimit(O) / 1E6), size(nodes(data)))
     println("Trying to use $(maximum(x)) MB of memory")
     return ILPHolder(O, x, backend)
 end

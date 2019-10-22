@@ -21,7 +21,7 @@ function factory(
 
     # Get the function, arguments, and keyword arguments from the provided function
     Profiler.enable_passes()
-    f, args, kw = func()
+    A = func()
 
     #A callback that profiles the ngraph function
     function cb(f::nGraph.NFunction)
@@ -40,11 +40,11 @@ function factory(
 
     fex = nGraph.compile(
         backend,
-        f,
-        args...;
+        A.f,
+        A.args...;
         callback = callbacks,
         emit_timing = true,
-        kw...
+        A.kw...
     )
 
     return fex

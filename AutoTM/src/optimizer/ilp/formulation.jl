@@ -70,7 +70,7 @@ function update(I::T, local_args, data::FunctionData) where {T <: ILPHolder}
 
     decrease_amount = max(
         # Decrease by at most 5%
-        0.9,
+        0.95,
         # If the overuse is small, just decrease by a tiny amount
         1 - ((worst / ml) - 1) / 2,
     )
@@ -139,8 +139,6 @@ function create_model(modeltype::ILPHolder, profile_data::FunctionData)
 
     # Start with an empty model that we will progressively build.
     model = Model(with_optimizer(Gurobi.Optimizer; TimeLimit = 3600, MIPGap = 0.01))
-    #model = Model(with_optimizer(Cbc.Optimizer))
-    
     frame = Frame(modeltype, model, profile_data)
 
     # Going deep into JuMP here - the idea is to build the objective as a bunch of aff exprs
