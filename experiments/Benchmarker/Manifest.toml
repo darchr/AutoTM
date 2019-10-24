@@ -18,6 +18,12 @@ git-tree-sha1 = "82dab828020b872fa9efd3abec1152b075bc7cbf"
 uuid = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 version = "1.0.0"
 
+[[ArgCheck]]
+deps = ["Random"]
+git-tree-sha1 = "dab25d711a1dedb707a55dbc1eb9fd578f76ff32"
+uuid = "dce04be8-c92d-5529-be00-80e4d2c0e197"
+version = "1.0.1"
+
 [[ArnoldiMethod]]
 deps = ["DelimitedFiles", "LinearAlgebra", "Random", "SparseArrays", "StaticArrays", "Test"]
 git-tree-sha1 = "2b6845cea546604fb4dca4e31414a6a59d39ddcd"
@@ -29,6 +35,12 @@ deps = ["BinaryProvider", "Libdl", "LinearAlgebra"]
 git-tree-sha1 = "07a2c077bdd4b6d23a40342a8a108e2ee5e58ab6"
 uuid = "7d9fca2a-8960-54d3-9f78-7d1dccf2cb97"
 version = "0.3.1"
+
+[[AutoTM]]
+deps = ["DataStructures", "Dates", "DocStringExtensions", "Flux", "Gurobi", "IterTools", "JSON", "JuMP", "LightGraphs", "NNlib", "PersistentArrays", "ProgressMeter", "Random", "Serialization", "Statistics", "Tracker", "nGraph"]
+path = "../../AutoTM"
+uuid = "9c1cd6ba-68e8-54c4-8ab4-4c74cdb1d447"
+version = "0.1.0"
 
 [[Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
@@ -152,13 +164,19 @@ version = "1.1.0"
 
 [[DataStructures]]
 deps = ["InteractiveUtils", "OrderedCollections"]
-git-tree-sha1 = "0809951a1774dc724da22d26e4289bbaab77809a"
+git-tree-sha1 = "2103e504f427e54ffa19af9ada225733a21f951f"
 uuid = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
-version = "0.17.0"
+version = "0.17.3"
 
 [[Dates]]
 deps = ["Printf"]
 uuid = "ade2ca70-3891-5945-98fb-dc099432e06a"
+
+[[DefaultApplication]]
+deps = ["Test"]
+git-tree-sha1 = "a51d16b075dc52e22cde13b4a6e0ba4ba86649ee"
+uuid = "3f0dd361-4fe0-5fc6-8523-80b14ec94d85"
+version = "0.1.3"
 
 [[DelimitedFiles]]
 deps = ["Mmap"]
@@ -291,10 +309,10 @@ uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 
 [[LightGraphs]]
-deps = ["ArnoldiMethod", "Base64", "DataStructures", "DelimitedFiles", "Distributed", "Inflate", "LinearAlgebra", "Markdown", "Random", "SharedArrays", "SimpleTraits", "SparseArrays", "Statistics", "Test"]
-git-tree-sha1 = "c7222c370d5cf6d4e08ae40bddd8c0db6852dfb1"
+deps = ["ArnoldiMethod", "DataStructures", "Distributed", "Inflate", "LinearAlgebra", "Random", "SharedArrays", "SimpleTraits", "SparseArrays", "Statistics"]
+git-tree-sha1 = "a0d4bcea4b9c056da143a5ded3c2b7f7740c2d41"
 uuid = "093fc24a-ae57-5d10-9952-331d41423f4d"
-version = "1.2.0"
+version = "1.3.0"
 
 [[LinQuadOptInterface]]
 deps = ["Compat", "MathOptInterface"]
@@ -370,6 +388,18 @@ git-tree-sha1 = "035f8d60ba2a22cb1d2580b1e0e5ce0cb05e4563"
 uuid = "90014a1f-27ba-587c-ab20-58faa44d9150"
 version = "0.9.10"
 
+[[PGFPlotsX]]
+deps = ["ArgCheck", "Crayons", "DataStructures", "Dates", "DefaultApplication", "DocStringExtensions", "MacroTools", "Missings", "Parameters", "Requires", "StatsBase", "Unicode"]
+git-tree-sha1 = "169528d1574e4695db9b5e8304ddfeb4bb717a3f"
+uuid = "8314cec4-20b6-5062-9cdb-752b83310925"
+version = "1.1.0"
+
+[[Parameters]]
+deps = ["OrderedCollections"]
+git-tree-sha1 = "b62b2558efb1eef1fa44e4be5ff58a515c287e38"
+uuid = "d96e819e-fc66-5662-9728-84c9c7592b0a"
+version = "0.12.0"
+
 [[Parsers]]
 deps = ["Dates", "Test"]
 git-tree-sha1 = "ef0af6c8601db18c282d092ccbd2f01f3f0cd70b"
@@ -378,7 +408,7 @@ version = "0.3.7"
 
 [[PersistentArrays]]
 deps = ["LibGit2", "Libdl"]
-path = "../deps/PersistentArrays"
+path = "../../deps/PersistentArrays"
 uuid = "0bd6e0f1-f413-4adc-84f9-e31ccad13b82"
 version = "0.1.0"
 
@@ -396,9 +426,9 @@ uuid = "9abbd945-dff8-562f-b5e8-e1ebf5ef1b79"
 
 [[ProgressMeter]]
 deps = ["Distributed", "Printf"]
-git-tree-sha1 = "0f08e0e74e5b160ca20d3962a2620038b75881c7"
+git-tree-sha1 = "fab12b19f198dd148ca467ac4e4f12ecd0241819"
 uuid = "92933f4c-e287-5a05-a399-4b506db050ca"
-version = "1.0.0"
+version = "1.1.0"
 
 [[QuadGK]]
 deps = ["DataStructures", "LinearAlgebra", "Test"]
@@ -553,6 +583,6 @@ version = "0.3.0"
 
 [[nGraph]]
 deps = ["BenchmarkTools", "Cassette", "CxxWrap", "Dates", "Distributions", "Flux", "Glob", "IRTools", "IterTools", "JSON", "LibGit2", "Libdl", "MacroTools", "NNlib", "ProgressMeter", "Random", "Tracker", "Zygote"]
-path = "../deps/nGraph"
+path = "../../deps/nGraph"
 uuid = "96f067b3-e350-5ae7-90f2-8283c539009d"
 version = "0.1.0"

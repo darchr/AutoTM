@@ -1,18 +1,10 @@
 module Experiments
 
-using Serialization
-
-using ..Utils
-using ..Profiler
-using ..Optimizer
-import ..Zoo
-import ..Visualizer
-import ..Visualizer.canonical_path
-import nGraph
+import ..Zoo: Zoo
 
 # Make a data directory if needed
 function __init__()
-    for dir in (DATADIR, CACHEDIR, CPUDATA, GPUDATA)
+    for dir in (DATADIR, CACHEDIR)
         !ispath(dir) && mkdir(dir)
     end
 end
@@ -25,65 +17,81 @@ const REPODIR = dirname(PKGDIR)
 const DATADIR = joinpath(REPODIR, "data")
 const CACHEDIR = joinpath(DATADIR, "caches")
 
-const CPUDATA = joinpath(DATADIR, "cpu")
-const GPUDATA = joinpath(DATADIR, "gpu")
-
-const SINGLE_KERNEL_PATH = joinpath(DATADIR, "caches", "single_cpu_profile.jls")
-const MULTIPLE_KERNEL_PATH = joinpath(DATADIR, "caches", "multiple_cpu_profile.jls")
+const CPU_CACHE = joinpath(CACHEDIR, "single_cpu_profile.jls")
 const GPU_CACHE = joinpath(CACHEDIR, "gpu_profile.jls")
 
-const TILING_FACTOR = Dict(
-    SINGLE_KERNEL_PATH => 1,
-    MULTIPLE_KERNEL_PATH => 4,
-    GPU_CACHE => 1,
-)
-
-# Easy model declarations
-include("models.jl")
-include("conventional.jl")
-include("large.jl")
-include("gpu.jl")
-
 #####
-##### Trials
+##### Convenience wrappers for common models
 #####
 
-wrap(x::Union{Tuple, <:Array, <:Iterators.Flatten}) = x
-wrap(x) = (x,)
+conventional_inception()    = Inception_v4(1024)
+conventional_resnet()       = Resnet200(512)
+conventional_vgg()          = Vgg19(2048)
+conventional_densenet()     = DenseNet(512)
+conventional_transformer()  = Transformer(512, 150)
+test_vgg() = Vgg19(32)
 
-savedir(::nGraph.Backend{nGraph.CPU}) = CPUDATA
-savedir(::nGraph.Backend{nGraph.GPU}) = GPUDATA
+# Large Models
+large_inception() = Inception_v4(6144)      # 659 GB
+large_vgg() = Vgg416(320)                   # 658 GB
+large_resnet() = Resnet200(2560)            # 651 GB
+large_densenet() = DenseNet(3072)           # 688 GB
 
-getcache(::nGraph.Backend{nGraph.CPU}, path::String) = CPUKernelCache(path)
-getcache(::nGraph.Backend{nGraph.GPU}, path::String) = GPUKernelCache(path)
+#####
+##### Model Implementations
+#####
 
-# Unwrap the string name from `cache`
-canonical_path(f, opt::Optimizer.AbstractOptimizer, cache::String, backend::nGraph.Backend, suffix = nothing) =
-    canonical_path(f, Optimizer.name(opt), cache, backend, suffix)
-
-function canonical_path(f, opt::String, cache::String, backend::nGraph.Backend, suffix = nothing)
-    # Find the prefix for the cache
-    cachename = first(splitext(basename(cache)))
-    n = join((name(f), opt, cachename), "_")
-    if !isnothing(suffix)
-        n = n * "_$suffix"
-    end
-    n = n * ".jls"
-    return joinpath(savedir(backend), n)
+# Resnet
+struct Resnet{T}
+    batchsize::Int
+    zoo::T
 end
+Resnet50(batchsize) = Resnet(batchsize, Zoo.Resnet50())
+Resnet200(batchsize) = Resnet(batchsize, Zoo.Resnet200())
 
-function execute(fns, opts, caches, backend, suffix = nothing; kw...)
-    # Wrap functions, optimizers, and caches so we can safely iterate over everything
-    for f in wrap(fns), cache in wrap(caches), opt in wrap(opts)
-        savefile = canonical_path(f, opt, cache, backend, suffix)
-        Profiler.compare(f, opt, backend;
-            statspath = savefile,
+_sz(::Zoo.Resnet50) = "50"
+_sz(::Zoo.Resnet200) = "200"
+name(R::Resnet) = "resnet$(_sz(R.zoo))_batchsize_$(R.batchsize)"
+titlename(R::Resnet) = "Resnet$(_sz(R.zoo))"
+(R::Resnet)() = Zoo.resnet_training(R.zoo, R.batchsize)
 
-            # Set the cache as well as how many times to replicate kernels for profiling
-            cache = getcache(backend, cache),
-            kw...
-        )
-    end
+# VGG
+struct Vgg{T}
+    batchsize::Int
+    zoo::T
 end
+Vgg19(batchsize) = Vgg(batchsize, Zoo.Vgg19())
+Vgg416(batchsize) = Vgg(batchsize, Zoo.Vgg416())
 
+_sz(::Zoo.Vgg19) = "19"
+_sz(::Zoo.Vgg416) = "416"
+name(R::Vgg) = "vgg$(_sz(R.zoo))_batchsize_$(R.batchsize)"
+titlename(R::Vgg) = "Vgg$(_sz(R.zoo))"
+(R::Vgg)() = Zoo.vgg_training(R.zoo, R.batchsize)
+
+# Inception
+struct Inception_v4
+    batchsize::Int
 end
+name(R::Inception_v4) = "inception_v4_batchsize_$(R.batchsize)"
+titlename(::Inception_v4) = "Inception v4"
+(R::Inception_v4)() = Zoo.inception_v4_training(R.batchsize)
+
+# DenseNet
+struct DenseNet
+    batchsize::Int
+end
+titlename(R::DenseNet) = "DenseNet 264"
+name(R::DenseNet) = "densenet264_batchsize_$(R.batchsize)"
+(R::DenseNet)() = Zoo.densenet_training(R.batchsize)
+
+struct Transformer
+    batchsize::Int
+    sequence_length::Int
+end
+titlename(T::Transformer) = "Transformer"
+name(T::Transformer) = "transformer_batchsize_$(T.batchsize)_seqlen_$(T.sequence_length)"
+(T::Transformer)() = Zoo.transformer_training(T.batchsize, T.sequence_length)
+
+end #module
+

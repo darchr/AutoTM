@@ -1,0 +1,48 @@
+
+```julia
+# Use Julia's stacked environment to essentially inherit the environment of AutoTM
+include("init.jl")
+using Benchmarker
+```
+
+```julia
+Benchmarker.plot_front()
+```
+
+```julia
+Benchmarker.plot_speedup()
+```
+
+```julia
+Benchmarker.plot_conventional_error()
+```
+
+```julia
+Benchmarker.plot_costs()
+```
+
+```julia
+named_tuple = Benchmarker.inception_case_study_plots()
+named_tuple.performance
+```
+
+```julia
+named_tuple.io
+```
+
+```julia
+named_tuple.movement
+```
+
+```julia
+Benchmarker.plot_large()
+```
+
+# GPU Performance
+
+```julia
+Benchmarker.plot_gpu_performance()
+```
+
+```julia
+```

@@ -5,9 +5,9 @@ function __init__()
     setup_affinities()
     setup_codegen()
     setup_passes()
-    
+
     # Setup PMEM if that option is enabled in nGraph.jl
-    settings = nGraph.settings() 
+    settings = nGraph.settings()
     pmm_enabled = get(settings, "PMDK", false)
     pmm_enabled && setup_pmem()
 
@@ -15,7 +15,7 @@ function __init__()
     #
     # Otherwise, some code that lives in the CPU portion of the nGraph code base will not
     # be loaded/links and we error :(
-    backend = nGraph.Backend("CPU")     
+    backend = nGraph.Backend("CPU")
 
     # DEPRECATRED: This is needed for a newer version of ngraph - but I reverted back
     # to the ASPLOS version of ngraph because the newer version was too unstable for
@@ -38,9 +38,6 @@ using IterTools
 using ProgressMeter
 using DataStructures
 using Flux
-
-# for the beautiful plotting!
-using PGFPlotsX
 
 # docstringing it up!
 using DocStringExtensions
@@ -71,7 +68,7 @@ include("zoo/zoo.jl")
 ##### Plotting
 #####
 
-include("visualizer/visualizer.jl")
+#include("visualizer/visualizer.jl")
 
 #####
 ##### Experiments

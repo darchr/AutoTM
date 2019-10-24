@@ -1,0 +1,11 @@
+name = "Benchmarker"
+uuid = "1879dd6c-ff35-4820-ab9d-21a98656bc13"
+authors = ["Mark Hildebrand <mhildebrand@ucdavis.edu>"]
+version = "0.1.0"
+
+[deps]
+AutoTM = "9c1cd6ba-68e8-54c4-8ab4-4c74cdb1d447"
+PGFPlotsX = "8314cec4-20b6-5062-9cdb-752b83310925"
+PersistentArrays = "0bd6e0f1-f413-4adc-84f9-e31ccad13b82"
+Serialization = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
+nGraph = "96f067b3-e350-5ae7-90f2-8283c539009d"
