@@ -1,5 +1,5 @@
 [submodule "nGraph"]
-	path = dpes/nGraph
+	path = deps/nGraph
 	url = https://github.com/hildebrandmw/nGraph.jl
 [submodule "SystemSnoop"]
 	path = deps/SystemSnoop
