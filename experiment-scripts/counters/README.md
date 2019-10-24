@@ -16,6 +16,40 @@ sudo <path-to-julia> counters.jl
 In a separate console window, run either `run_1lm.sh` or `run_2lm.sh` as appropriate.
 If you desire to run only a subset of these workloads, edit the run scripts.
 
+## Generating LaTeX allocation plots.
+
+Generating the LaTeX plots for the heap allocations is time intensive and kind of a hassle.
+To facilitate this running quicker, it is broken into a two step process.
+
+### Generating Timelines
+
+For prettier plots, we generate a timeline of the graph execution by running the graph with profiling counters turned on.
+Then, a stripped down copy of the graph is saved along with timing data.
+This copy of the graph is the baseline for generating the allocation plots.
+These serialized copies will live in the `serialized/` folder.
+Note that since the `FunctionData` object contains pointers to nGraph C++ objects, we can't serialize it directly.
+Instead, we create a simple `Dict` that we save.
+The particular structure of the `Dict` is best understood by just looking at the code in `runner.jl`.
+
+### Generating Plots (TODO)
+
+Generating each of the heap plots from the timeline takes a while (5 - 10 minutes).
+Thus, a mode will be provided that distributes the plot generation to many workers so they are done in parallel.
+The rendered `pdf`s will be saved to the `figures/` folder.
+
+## Rendering Notebook
+
+The summary of the experiment is stored in `summary.jmd`, which is an input file for the
+[Weave](https://github.com/JunoLab/Weave.jl) package.
+Weave can be used to convert this into a full Jupyter notebook.
+In this directory, launch Julia and run the commands:
+```julia
+using Pkg; Pkg.activate("../../AutoTM")
+using Weave
+convert_doc("summary.jmd", "summary.ipynb")
+```
+The notebook `summary.ipynb` should then be runnable.
+
 ### Two Process Reasoning
 
 By default, all julia I/O tasks, timers etc are multiplexed through a single OS thread.
@@ -34,7 +68,13 @@ Since we're using two processes, and performance counters need `sudo` to work co
 
 ## Test Command
 
-To test if everything is working.
+To test if the counters are working
 ```
 julia --color=yes runner.jl --mode=1lm --workload=test_vgg --counter_type rw queue
+```
+NOTE: Make sure that `counters.jl` is running.
+
+To test the function saving properties run the command
+```
+julia --color=yes runner.jl --mode=2lm --workload=test_vgg --save_kerneltimes
 ```

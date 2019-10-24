@@ -9,7 +9,7 @@ Methods: [`enums`](@ref), [`times`](@ref), [`timeat`](@ref), [`bytesat`](@ref)
 struct CUDNNAlgorithm
     """
     The enum value used to select this algorithm.
-    
+
     This is a detail of cuDNN
     """
     enum::UInt32
@@ -51,7 +51,7 @@ end
 """
 $(SIGNATURES)
 
-Return the working space requirement in bytes  from `algs` for the algorithm witn enum 
+Return the working space requirement in bytes  from `algs` for the algorithm witn enum
 encoding `enum`.
 """
 function bytesat(algs::Vector{CUDNNAlgorithm}, e::Integer)
@@ -75,13 +75,13 @@ the ILP.
 $(FIELDS)
 """
 mutable struct XTensor{T}
-    # Can possible map a single XTensor to multiple tensor descriptors if two args are 
+    # Can possible map a single XTensor to multiple tensor descriptors if two args are
     # merged.
     "The `TensorDescriptor` that this `XTensor` represents."
     tensor::TensorDescriptor
 
     """
-    Ordered collection of `XNode`s that reference this XTensor. The first entry is the 
+    Ordered collection of `XNode`s that reference this XTensor. The first entry is the
     producer of this tensor. All the rest read this tensor.
     """
     users::Vector{T}
@@ -194,7 +194,7 @@ Merge all `XTensor`s in `A` into the same group.
 """
 function Base.merge!(A::Vector{<:XTensor})
     # Find the lowest group number and merge everything with that.
-    _, indmin = findmin(map(x -> x.group, A))    
+    _, indmin = findmin(map(x -> x.group, A))
     map(x -> merge!(x, A[indmin]), A)
     return nothing
 end
@@ -346,6 +346,7 @@ end
 nodes(f::FunctionData) = f.nodes
 tensors(f::FunctionData) = f.tensors
 
+FunctionData(fn::nGraph.NFunction, ::nGraph.Backend{T}) where {T} = FunctionData(fn, T)
 function FunctionData(fn::nGraph.NFunction, ::Type{T}) where {T}
     tensors = Set{XTensor{XNode}}()
     nodes = XNode[]
@@ -533,7 +534,7 @@ function possible_configs(node::XNode)
         )
     ))
 
-    # Filter out configs where some tensors belong to the same group and hence whose 
+    # Filter out configs where some tensors belong to the same group and hence whose
     # locations should vary together>
     tensors = vcat(inputs(node), outputs(node))
     unique_groups = unique(map(x -> x.group, tensors))

@@ -21,7 +21,7 @@ const C_SIZE = (8, 8, 1536)
 
 # We're gonna be REALLY mean to type inference. Sorry Julia!
 function stem()
-    println("Stem")
+    #println("Stem")
 
     return Chain(
         # Initial Stem
@@ -58,7 +58,7 @@ function stem()
 end
 
 function inception_a()
-    println("A Block")
+    #println("A Block")
     return InceptionBlock(
         Chain(
             x -> meanpool(x, (3,3); pad = 1, stride = 1),
@@ -78,7 +78,7 @@ function inception_a()
 end
 
 function inception_b()
-    println("B Block")
+    #println("B Block")
     S = B_SIZE[3]
     return InceptionBlock(
         Chain(
@@ -102,7 +102,7 @@ function inception_b()
 end
 
 function inception_c()
-    println("C Block")
+    #println("C Block")
     S = C_SIZE[3]
     return InceptionBlock(
         Chain(
@@ -130,7 +130,7 @@ function inception_c()
 end
 
 function inception_ra(k, l, m, n)
-    println("A Reduction")
+    #println("A Reduction")
     S = A_SIZE[3]
 
     return InceptionBlock(
@@ -145,7 +145,7 @@ function inception_ra(k, l, m, n)
 end
 
 function inception_rb()
-    println("B Reduction")
+    #println("B Reduction")
     S = B_SIZE[3]
 
     return InceptionBlock(

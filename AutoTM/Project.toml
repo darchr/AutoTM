@@ -25,6 +25,7 @@ Snooper = "f30c1ba8-7693-4b1e-8e6d-7c42fdf2893a"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 SystemSnoop = "c30797a9-91c2-5451-bcc7-95710ac2a28d"
 Tracker = "9f7883ad-71c0-57eb-9f7f-b5c9e6d3789c"
+Weave = "44d3d7a6-8a23-5bf8-98c5-b353f8df5ec9"
 nGraph = "96f067b3-e350-5ae7-90f2-8283c539009d"
 
 [extras]

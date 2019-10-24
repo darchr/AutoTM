@@ -21,7 +21,4 @@ include("large.jl")
 include("speedup.jl")
 include("stats.jl")
 
-# Plot the heap locations of all intermediate tensors.
-include("memory.jl")
-
 end
