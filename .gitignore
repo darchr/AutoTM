@@ -16,7 +16,7 @@ cpu_codegen/
 gpu_codegen/
 docs/build
 .ipynb_checkpoints
-deps
+*/deps
 data
 tags
 desc_file

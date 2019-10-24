@@ -1,12 +1,16 @@
-[submodule "nGraph"]
+[submodule "deps/nGraph"]
 	path = deps/nGraph
 	url = https://github.com/hildebrandmw/nGraph.jl
-[submodule "SystemSnoop"]
+	branch = master
+[submodule "deps/SystemSnoop"]
 	path = deps/SystemSnoop
 	url = https://github.com/hildebrandmw/SystemSnoop.jl
-[submodule "PCM"]
+	branch = master
+[submodule "deps/PCM"]
 	path = deps/PCM
 	url = https://github.com/hildebrandmw/PCM.jl
-[submodule "PersistentArrays"]
+	branch = master
+[submodule "deps/PersistentArrays"]
 	path = deps/PersistentArrays
 	url = https://github.com/darchr/PersistentArrays.jl
+	branch = master
