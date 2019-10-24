@@ -412,7 +412,7 @@ version = "1.1.0"
 
 [[PCM]]
 deps = ["CxxWrap", "LibGit2"]
-path = "../PCM"
+path = "../deps/PCM"
 uuid = "7d644800-0fd4-5f4f-871b-eb28bd968194"
 version = "0.1.0"
 
@@ -442,7 +442,7 @@ version = "0.3.7"
 
 [[PersistentArrays]]
 deps = ["LibGit2", "Libdl"]
-path = "../PersistentArrays"
+path = "../deps/PersistentArrays"
 uuid = "0bd6e0f1-f413-4adc-84f9-e31ccad13b82"
 version = "0.1.0"
 
@@ -570,7 +570,7 @@ uuid = "4607b0f0-06f3-5cda-b6b1-a6196a1729e9"
 
 [[SystemSnoop]]
 deps = ["Dates", "RecipesBase", "Requires", "Serialization"]
-path = "../SystemSnoop"
+path = "../deps/SystemSnoop"
 uuid = "c30797a9-91c2-5451-bcc7-95710ac2a28d"
 version = "0.1.0"
 
@@ -670,6 +670,6 @@ version = "0.3.0"
 
 [[nGraph]]
 deps = ["BenchmarkTools", "Cassette", "CxxWrap", "Dates", "Distributions", "Flux", "Glob", "IRTools", "IterTools", "JSON", "LibGit2", "Libdl", "MacroTools", "NNlib", "ProgressMeter", "Random", "Tracker", "Zygote"]
-path = "../nGraph"
+path = "../deps/nGraph"
 uuid = "96f067b3-e350-5ae7-90f2-8283c539009d"
 version = "0.1.0"
