@@ -31,11 +31,26 @@ Note that since the `FunctionData` object contains pointers to nGraph C++ object
 Instead, we create a simple `Dict` that we save.
 The particular structure of the `Dict` is best understood by just looking at the code in `runner.jl`.
 
-### Generating Plots (TODO)
+### Generating Plots
 
 Generating each of the heap plots from the timeline takes a while (5 - 10 minutes).
-Thus, a mode will be provided that distributes the plot generation to many workers so they are done in parallel.
 The rendered `pdf`s will be saved to the `figures/` folder.
+To speeup up this process, we can use Julia's multiprocessing.
+Start Julia with
+```
+julia -pN
+```
+where `N` is the number of workers you want to use.
+In Julia, run
+```julia
+juila> @everywhere include("plots.jl")
+
+julia> files = readdir("serialized")
+
+julia> pmap(CounterPlots.heap_plot, joinpath.(pwd(), "serialized", files))
+```
+This will distribute the plotting to all the workers, taking advantage of the multicore
+world we've all come to know and love!
 
 ## Rendering Notebook
 
@@ -50,21 +65,18 @@ convert_doc("summary.jmd", "summary.ipynb")
 ```
 The notebook `summary.ipynb` should then be runnable.
 
+**NOTE**: Make sure all of the heap plot figures are rendered before trying to run the notebook.
+
 ### Two Process Reasoning
 
 By default, all julia I/O tasks, timers etc are multiplexed through a single OS thread.
 This includes calls into shared libraries.
-Thus, calling into the ngraph library essentiall stops the same Julia process from
-    concurrently reading hardware counters.
+Thus, calling into the ngraph library essentiall stops the same Julia process from concurrently reading hardware counters.
 Julia provides a hook to get around this with the `@threadcall` macro
-(https://docs.julialang.org/en/v1/manual/parallel-computing/#@threadcall-(Experimental)-1),
-    but since we are using [CxxWrap](https://github.com/JuliaInterop/CxxWrap.jl), we don't
-    get this option.
-Therefor, two separate processes are used - one monitoring the performance counters and
-    one for managing all of the ngraph stuff.
+(https://docs.julialang.org/en/v1/manual/parallel-computing/#@threadcall-(Experimental)-1), but since we are using [CxxWrap](https://github.com/JuliaInterop/CxxWrap.jl), we don't get this option.
+Therefor, two separate processes are used - one monitoring the performance counters and one for managing all of the ngraph stuff.
 The two processes communicate through a NamedPipe.
-Since we're using two processes, and performance counters need `sudo` to work correctly,
-    we can run the performance counter code under `sudo` and the other code as a normal user.
+Since we're using two processes, and performance counters need `sudo` to work correctly, we can run the performance counter code under `sudo` and the other code as a normal user.
 
 ## Test Command
 
@@ -78,3 +90,9 @@ To test the function saving properties run the command
 ```
 julia --color=yes runner.jl --mode=2lm --workload=test_vgg --save_kerneltimes
 ```
+
+## Hypothesis
+
+Size of dirty cache must be "X" percent of the DRAM cache.
+What is the percent of the cache that can be dirty and still give reasonable performance.
+Possibly one quarter is enough.

@@ -129,6 +129,13 @@ plot_tags(data)
 
 As expected, we see many more clean misses.
 
+## Heap Allocation Plots
+
+Now, lets look at some mysterious heap allocation plots that, if you think hard enough, explain the phenomena that we observe above.
+
+![](./figures/large_densenet_2lm_.pdf)
+![](./figures/large_densenet_2lm__scratchpad.pdf)
+
 # VGG 416
 
 Large VGG is a workload where AutoTM's speedup over 2LM is more minimal. Lets do some investigation.
@@ -179,6 +186,11 @@ data = CounterPlots.load("large_vgg_2lm"; f = CounterPlots.isscratchpad, max_tru
 plot_queue_depth(data)
 ```
 
+### VGG Heap Plots
+
+![](./figures/large_vgg_2lm_.pdf)
+![](./figures/large_vgg_2lm__scratchpad.pdf)
+
 # Resnet
 For completeness, the other workloads are shown.
 
@@ -220,6 +232,11 @@ data = CounterPlots.load("large_resnet_2lm"; f = CounterPlots.isscratchpad)
 plot_queue_depth(data)
 ```
 
+### Resnet Heap Plots
+
+![](./figures/large_resnet_2lm_.pdf)
+![](./figures/large_resnet_2lm__scratchpad.pdf)
+
 ## Inception
 
 ```julia
@@ -258,4 +275,15 @@ plot_queue_depth(data)
 ```julia
 data = CounterPlots.load("large_inception_2lm"; f = CounterPlots.isscratchpad)
 plot_queue_depth(data)
+```
+
+Looking at the heap allocation plots, we can understand a little of why inception actually sees a slowdown.
+It appears that we weren't agressive enough with our assignment of data to the "short lived" zone, as there are still writes occuring to pretty much all memory.
+
+This, combined with the thrashing that introducing the scratchpad induces, results in a slowdown!
+
+![](./figures/large_inception_2lm_.pdf)
+![](./figures/large_inception_2lm__scratchpad.pdf)
+
+```julia
 ```
