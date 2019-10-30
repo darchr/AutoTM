@@ -142,7 +142,7 @@ function XTensor(tensor::TensorDescriptor, ::Type{T}; fixed_at = nothing) where 
         push!(xtensor.locations, fixed_at)
     else
         push!(xtensor.locations, DRAM)
-        if !isconstant(xtensor) && T == nGraph.CPU
+        if !isconstant(xtensor)
             push!(xtensor.locations, PMEM)
         end
     end
@@ -507,13 +507,13 @@ end
 ##### Valid locations that a tensor can live
 #####
 
-function possible_configs(data::FunctionData)
+function possible_configs(backend::nGraph.Backend, data::FunctionData)
     configs = Set{Tuple{XNode, IOConfig}}()
     for node in nodes(data)
         hasprofile(node) || continue
 
         # Get possible configs based on backend type
-        pc = possible_configs(node)
+        pc = possible_configs(backend, node)
         for config in pc
             push!(configs, (node, config))
         end
@@ -521,7 +521,7 @@ function possible_configs(data::FunctionData)
     return configs
 end
 
-function possible_configs(node::XNode)
+function possible_configs(::nGraph.Backend{nGraph.CPU}, node::XNode)
     config_inputs = [locations(t) for t in inputs(node)]
     config_outputs = [locations(t) for t in outputs(node)]
 
@@ -544,6 +544,14 @@ function possible_configs(node::XNode)
     end
 
     return configs
+end
+
+function possible_configs(::nGraph.Backend{nGraph.GPU}, node::XNode)
+    config = IOConfig(
+        ntuple(_ -> DRAM, length(inputs(node))),
+        ntuple(_ -> DRAM, length(outputs(node))),
+    )
+    return (config,)
 end
 
 function getconfig(n::nGraph.Node)

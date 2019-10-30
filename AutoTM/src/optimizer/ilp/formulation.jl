@@ -33,15 +33,16 @@ end
 # This should cause the ngraph allocator to free up some space so we don't go over the
 # limit.
 offenders(frame::Frame) = offenders(frame.modeltype, frame.profile_data)
-function offenders(I::ILPHolder, data::FunctionData, io_bytes = 0)
+function offenders(I::ILPHolder, data::FunctionData, io_bytes)
     dram_limits = I.dram_limits
     ml = maxlimit(I)
     @show ml
 
     # Go through all of the live tensors - find the first that exceeds the limit
     offending_tensors = XTensor{XNode}[]
+    offending_nodes = XNode[]
     worst = 0
-    for live in live_tensors(data)
+    for (index, live) in enumerate(live_tensors(data))
         # Find the DRAM tensors
         dram_tensors = filter(!is_persistent, live)
         isempty(dram_tensors) && continue
@@ -54,9 +55,19 @@ function offenders(I::ILPHolder, data::FunctionData, io_bytes = 0)
                 worst = max(worst, sz)
             end
         end
+
+        # Check if we have a workspace and get the offset of the workspace
+        node = nodes(data)[index] 
+        offset = nGraph.Lib.get_workspace_tensor_offset(nGraph.getpointer(unx(node)))
+        tensor_size = nGraph.Lib.get_workspace_tensor_size(nGraph.getpointer(unx(node)))
+        sz = (io_bytes + offset + tensor_size) / 1E6
+        if sz > ml
+            push!(offending_nodes, node)
+            worst = max(worst, sz)
+        end
     end
 
-    return offending_tensors, worst
+    return offending_tensors, offending_nodes, worst
 end
 
 function update(I::T, local_args, data::FunctionData) where {T <: ILPHolder}
@@ -64,19 +75,22 @@ function update(I::T, local_args, data::FunctionData) where {T <: ILPHolder}
     io_bytes = isempty(local_args) ? 0 : sum(sizeof, local_args)
     ml = maxlimit(I)
 
-    offending_tensors, worst = offenders(I, data, io_bytes)
+    offending_tensors, offending_nodes, worst = offenders(I, data, io_bytes)
 
     @info "Allocation size: " worst
 
     decrease_amount = max(
         # Decrease by at most 5%
-        0.95,
+        0.98,
         # If the overuse is small, just decrease by a tiny amount
         1 - ((worst / ml) - 1) / 2,
     )
 
     # Keep track of the indices that need their limits lowered
     indices = Int[]
+    for node in offending_nodes
+        push!(indices, I.node_to_limit_index[nGraph.name(node)])
+    end
 
     for tensor in offending_tensors
         for node in users(tensor)
@@ -161,7 +175,7 @@ function create_model(modeltype::ILPHolder, profile_data::FunctionData)
         if isnothing(_async)
             add_to_expression!(objective_expr, node_times)
         else
-            var = @variable(model, integer = true, lower_bound = 0)
+            var = @variable(model, lower_bound = 0.0)
             @constraint(model, var >= node_times)
             @constraint(model, var >= _async)
             add_to_expression!(objective_expr, var)
@@ -390,10 +404,10 @@ function add_movement_formulations!(frame::Frame)
         bytes = sizeof(tensor)
 
         # Take the ceiling of all these to ensure there's always a cost to moving.
-        read_cost        = scale(ceil(Int, bytes / rb(modeltype)))
-        write_cost       = scale(ceil(Int, bytes / wb(modeltype)))
-        read_cost_async  = scale(ceil(Int, bytes / rba(modeltype)))
-        write_cost_async = scale(ceil(Int, bytes / wba(modeltype)))
+        read_cost        = scale(bytes / rb(modeltype))
+        write_cost       = scale(bytes / wb(modeltype))
+        read_cost_async  = scale(bytes / rba(modeltype))
+        write_cost_async = scale(bytes / wba(modeltype))
 
         # Collect Edges according to type.
         sync_reads = _find_edges(g, EDGE_SYNC_READ)
@@ -495,8 +509,8 @@ function add_nodes!(F::Frame)
     data = F.profile_data
 
     # Create decision variables for all nodes that have a choice of backend algorithm.
-    # TODO: reimplement
     select_nodes = filter(x -> hasprofile(x) && can_select_algo(x), nodes(data))
+    @show length(select_nodes)
     if !isempty(select_nodes)
         @info "Creating Algorithms Variables"
         @variable(

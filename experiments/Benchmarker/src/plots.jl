@@ -575,6 +575,8 @@ function pgf_gpu_performance_plot(
             data = deserialize(canonical_path(f, formulation, cache, backend))
             speedup = baseline_runtime[f] / minimum(getname(data.runs, :actual_runtime))
 
+            println("Runtime - $formulation - $f:", minimum(getname(data.runs, :actual_runtime)))
+
             push!(x, i)
             push!(y, speedup)
 

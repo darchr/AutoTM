@@ -92,6 +92,9 @@ end
 function list_overlaps(frame::Frame)
     model = frame.model
     node_times = model[:node_times]
+
+    total_node_execution_time = 0.0
+    total_move_time = 0.0
     for node in nodes(frame.profile_data)
         node_name = nGraph.name(node)
         haskey(node_times, node_name) || continue
@@ -101,11 +104,20 @@ function list_overlaps(frame::Frame)
             async_move_time = JuMP.value(_async)
             node_execution_time = JuMP.value(node_times[node_name])
 
+            total_move_time += async_move_time
+
             @info """
             Overlap times for $node_name
             Node Execution Time: $node_execution_time
             Async Move Time : $async_move_time
             """
         end
+        total_node_execution_time += JuMP.value(node_times[node_name])
     end
+
+    println()
+    @info """
+    Total Node Execution Time: $total_node_execution_time
+    Total Move Time: $total_move_time
+    """
 end

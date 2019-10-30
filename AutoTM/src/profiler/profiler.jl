@@ -35,6 +35,7 @@ using Serialization, Dates
 
 using ..Utils
 using ProgressMeter
+using JuMP
 using PersistentArrays
 using Statistics
 using DocStringExtensions

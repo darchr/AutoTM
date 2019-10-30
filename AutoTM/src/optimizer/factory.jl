@@ -132,6 +132,7 @@ function _factory(
                 A.kw...
             )
         catch e
+            isa(e, CompilerExit) && return nothing
             isa(e, CompilerRetry) || rethrow(e)
             retry = true
         end

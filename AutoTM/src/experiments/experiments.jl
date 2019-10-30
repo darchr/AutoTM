@@ -20,6 +20,15 @@ const CACHEDIR = joinpath(DATADIR, "caches")
 const CPU_CACHE = joinpath(CACHEDIR, "single_cpu_profile.jls")
 const GPU_CACHE = joinpath(CACHEDIR, "gpu_profile.jls")
 
+const GPU_MAX_MEMORY = 11_000_000_000
+
+# Got this number from looking at nvidia-smi after all the GPU initialization code
+# in ngraph runs.
+#
+# Probably worth double-checking
+const GPU_MEMORY_OVERHEAD = 561_000_000
+const GPU_ADJUSTED_MEMORY = GPU_MAX_MEMORY - GPU_MEMORY_OVERHEAD
+
 #####
 ##### Convenience wrappers for common models
 #####

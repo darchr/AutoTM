@@ -15,7 +15,7 @@ function check_profile(fex::nGraph.FluxExecutable, frame; only_greater = false)
         if nGraph.Lib.can_select_algo(nGraph.getpointer(unx(node)))
             algo_var = frame.model[:algo_var]
             local algo_enum
-            for enum in get_enums(gettime(data, node))
+            for enum in enums(gettime(node))
                 if approx_one(algo_var[node, enum])
                     algo_enum = enum
                     break
@@ -23,7 +23,7 @@ function check_profile(fex::nGraph.FluxExecutable, frame; only_greater = false)
             end
 
             actual = perf[nGraph.name(node)]
-            expected = get_time(gettime(data, node), algo_enum)
+            expected = timeat(gettime(node), algo_enum)
 
             # Get the expected move time
             _async = get(frame.model[:tensor_async], nGraph.name(node), nothing)

@@ -54,14 +54,13 @@ function profile(
     # Create a "FunctionData" object for this function, which allows us to record the graph
     # structures and metadata on the Julia level.
     data = FunctionData(f, T)
-    handle_algo_selection!(cache, backend, data)
 
     # Do any post-processing on the `data` object.
     isnothing(cb) || cb(data)
 
     # Get all the configurations we are interested in for this run.
     # Need to make a MOVE node in order to control IO configurations.
-    all_configs = possible_configs(data)
+    all_configs = possible_configs(backend, data)
 
     # Convert the configs to a dictionary mapping node name to configs for easier
     # management
@@ -84,6 +83,8 @@ function profile(
             end
         end
     end
+
+    handle_algo_selection!(cache, backend, data)
 
     num_configs = sum(length(config_dict[node]) for node in nodes(data) if hasprofile(node))
     progress_bar = Progress(num_configs, 0.2)
@@ -141,31 +142,10 @@ function profile(
         for config in Iterators.filter(!in(cached_configs), configs)
             _update!(progress_bar, node, config, ncached)
 
-            # Extract this particular node with the given configuration
-            # Place GC barriers around the instantiation of the nGraph.Executable to try
-            # to reduce interference with other extractions.
-            ex, inputs, outputs, copied_ops = extract(
-                node,
-                backend,
-                config;
-            )
-
-            # Run the function several times. The first time is a warm up.
-            # Timing for the second runs should be pretty consistent.
-            GC.@preserve inputs outputs begin
-                # Due to limitations with the current nGraph interface, we have to cast the
-                # input and output tensor arrays to Vector{Any} where the contents are
-                # pointers to the runtime Tensors
-                input_ptrs = convert(Vector{Any}, nGraph.getpointer.(inputs))
-                output_ptrs = convert(Vector{Any}, nGraph.getpointer.(outputs))
-
-                for _ in 1:5
-                    ex(input_ptrs, output_ptrs)
-                end
-            end
-
-            # Save the run time into the node
-            record_time!(node, ex, copied_ops, config)
+            # Drop the actual profiling into an inner loop to help the GC run inbetween
+            # kernels to keep memory consumption down.
+            GC.gc()
+            _profile!(node, backend, config)   
 
             # Record the saved time into the cache and save the cache to persist the data
             # across transient or intentional (i.e. ctrl+c) failures.
@@ -178,6 +158,35 @@ function profile(
     enable_passes()
 
     return data
+end
+
+@noinline function _profile!(node, backend, config)
+    # Extract this particular node with the given configuration
+    # Place GC barriers around the instantiation of the nGraph.Executable to try
+    # to reduce interference with other extractions.
+    ex, inputs, outputs, copied_ops = extract(
+        node,
+        backend,
+        config;
+    )
+
+    # Run the function several times. The first time is a warm up.
+    # Timing for the second runs should be pretty consistent.
+    GC.@preserve inputs outputs begin
+        # Due to limitations with the current nGraph interface, we have to cast the
+        # input and output tensor arrays to Vector{Any} where the contents are
+        # pointers to the runtime Tensors
+        input_ptrs = convert(Vector{Any}, nGraph.getpointer.(inputs))
+        output_ptrs = convert(Vector{Any}, nGraph.getpointer.(outputs))
+
+        for _ in 1:5
+            ex(input_ptrs, output_ptrs)
+        end
+    end
+
+    # Save the run time into the node
+    record_time!(node, ex, copied_ops, config)
+    return nothing
 end
 
 #####
@@ -201,7 +210,7 @@ function handle_algo_selection!(cache, backend::nGraph.Backend{nGraph.GPU}, data
             # in the GPU case.
             #
             # If we need more flexibility - we'll deal with it in the future
-            configs = possible_configs(node, nGraph.GPU)
+            configs = possible_configs(backend, node)
             @assert length(configs) == 1
             config = first(configs)
 
@@ -298,7 +307,7 @@ function extract(
 
     # Get the input and output XTensors for this XNode - do a quick sanity check on the
     # inputs and outputs to make sure everything is still okay.
-    input_xtensors = inputs(xnode)
+    input_xtensors = filter(!isconstant, inputs(xnode))
     output_xtensors = outputs(xnode)
 
     for (x,p) in zip(input_xtensors, parameters)
@@ -393,21 +402,26 @@ function extract(
     # If we come across any `inplace` annotations, we need to make sure we duplicate the
     # pointer to the underlying runtime tensor
     inplace = Dict{Int, nGraph.TensorView}()
-    input_tensors = map(input_xtensors) do x
-        # If this is an inplace node and we've already generated a tensor for it, just
-        # return that tensor
-        if isinplace(x) && haskey(inplace, x.group)
-            return inplace[x.group]
-        end
 
-        # If this tensor is persistent - create a PersistentArray to create it from.
-        # Otherwise, just use a normal array.
-        unxx = unx(x)
-        #A = zeros(eltype(unxx), size(unxx))
-        A = aligned_alloc(eltype(unxx), size(unxx))
-        t = nGraph.TensorView(backend, A)
-        isinplace(x) && (inplace[x.group] = t)
-        return t
+    if length(input_xtensors) == 0
+        input_tensors = nGraph.TensorView[]
+    else
+        input_tensors = map(input_xtensors) do x
+            # If this is an inplace node and we've already generated a tensor for it, just
+            # return that tensor
+            if isinplace(x) && haskey(inplace, x.group)
+                return inplace[x.group]
+            end
+
+            # If this tensor is persistent - create a PersistentArray to create it from.
+            # Otherwise, just use a normal array.
+            unxx = unx(x)
+            #A = zeros(eltype(unxx), size(unxx))
+            A = aligned_alloc(eltype(unxx), size(unxx))
+            t = nGraph.TensorView(backend, A)
+            isinplace(x) && (inplace[x.group] = t)
+            return t
+        end
     end
     @assert isa(input_tensors, Vector{nGraph.TensorView})
 

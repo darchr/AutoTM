@@ -13,6 +13,9 @@ function __init__()
     for dir in (DATADIR, CPUDATA, GPUDATA, FIGDIR)
         isdir(dir) || mkpath(dir)
     end
+
+    # Configure the PGFPlotsX backend
+    PGFPlotsX.latexengine!(PGFPlotsX.PDFLATEX)
 end
 
 const SRCDIR = @__DIR__

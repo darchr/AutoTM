@@ -7,6 +7,7 @@ sumby(v, n) = [sum(@view(v[i:min(i+n-1, length(v))])) for i in 1:n:length(v)]
 using Serialization
 using Statistics
 using Dates
+using DataStructures
 
 using PGFPlotsX
 
@@ -18,6 +19,8 @@ function __init__()
     isdir(FIGDIR) || mkdir(FIGDIR)
 end
 
+ssum(x, s) = sum(sum.(x[s]))
+
 function make_plot(
         data, names;
         sumover = 1,
@@ -26,6 +29,7 @@ function make_plot(
         ylabel = "",
         ymax = nothing,
         modifier = identity,
+        title = "",
     )
 
     selected_data = Dict(k => sum.(data[k]) for k in names)
@@ -45,10 +49,9 @@ function make_plot(
         )
     end
 
-    plt = TikzDocument()
     empty!(PGFPlotsX.CUSTOM_PREAMBLE)
     push!(PGFPlotsX.CUSTOM_PREAMBLE, "\\usepgfplotslibrary{colorbrewer}")
-
+    plt = TikzDocument()
     push!(plt, "\\pgfplotsset{cycle list/Dark2}")
 
     tikz = TikzPicture()
@@ -68,6 +71,7 @@ function make_plot(
             grid = "major",
             xlabel = xlabel,
             ylabel = ylabel,
+            title = title,
             opts...
         },
         plots...
@@ -75,7 +79,6 @@ function make_plot(
     push!(tikz, axs)
     push!(plt, tikz)
 
-    pgfsave("temp.tex", plt)
     return plt
 end
 
@@ -268,6 +271,58 @@ function get_records(path)
     end
 
     return tensor_records
+end
+
+#####
+##### Plot summary statistics
+#####
+
+function barplot(records::OrderedDict{String, <:Dict}, ks; 
+        modifier = identity,
+        reducer = ssum,
+        ylabel = "",
+        title = "",
+    )
+    # For each entry in outer dict, take the total sum of the values of interest for each 
+    # inner dict.
+    records = map(collect(keys(records))) do name
+        v = records[name]
+        return name => Dict(k => reducer(v, k) for k in ks)
+    end |> OrderedDict
+
+    # Bar plots to add.
+    plots = []
+      
+    for (name, data) in records
+        # Generate the `x` and `y` coordinates for this sample
+        x = replace_.(ks)
+        y = [modifier(data[k]) for k in ks]
+
+        # Emit the plot
+        push!(plots,
+            @pgf(PlotInc(
+                Coordinates(x, y),
+            )),
+            @pgf(LegendEntry(name)),
+        )
+    end
+
+    axs = @pgf Axis(
+        {
+            ybar,
+            symbolic_x_coords = replace_.(ks),
+            enlarge_x_limits = 0.2,
+            xtick="data",
+            xticklabel_style = {
+                rotate = 10,
+            },
+            ymajorgrids,
+            title = titlecase(replace_(title)),
+            ylabel = ylabel,
+        },
+        plots...
+    )
+    return axs
 end
 
 end
