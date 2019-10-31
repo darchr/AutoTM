@@ -145,7 +145,7 @@ function profile(
             # Drop the actual profiling into an inner loop to help the GC run inbetween
             # kernels to keep memory consumption down.
             GC.gc()
-            _profile!(node, backend, config)   
+            _profile!(node, backend, config)
 
             # Record the saved time into the cache and save the cache to persist the data
             # across transient or intentional (i.e. ctrl+c) failures.
@@ -179,7 +179,7 @@ end
         input_ptrs = convert(Vector{Any}, nGraph.getpointer.(inputs))
         output_ptrs = convert(Vector{Any}, nGraph.getpointer.(outputs))
 
-        for _ in 1:5
+        for _ in 1:3
             ex(input_ptrs, output_ptrs)
         end
     end

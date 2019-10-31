@@ -58,9 +58,9 @@ version = "0.2.0"
 
 [[CSTParser]]
 deps = ["Tokenize"]
-git-tree-sha1 = "c69698c3d4a7255bc1b4bc2afc09f59db910243b"
+git-tree-sha1 = "99dda94f5af21a4565dc2b97edf6a95485f116c3"
 uuid = "00ebfdb7-1f24-5e51-bd34-a7502290713f"
-version = "0.6.2"
+version = "1.0.0"
 
 [[CUDAapi]]
 deps = ["Libdl", "Logging"]
@@ -552,7 +552,7 @@ uuid = "e88e6eb3-aa80-5325-afca-941959d7151f"
 version = "0.3.0"
 
 [[nGraph]]
-deps = ["BenchmarkTools", "Cassette", "CuArrays", "CxxWrap", "Dates", "Distributions", "Flux", "Glob", "IRTools", "IterTools", "JSON", "LibGit2", "Libdl", "MacroTools", "NNlib", "ProgressMeter", "Random", "Requires", "Tracker", "Zygote"]
+deps = ["BenchmarkTools", "Cassette", "CxxWrap", "Dates", "Distributions", "Flux", "Glob", "IRTools", "IterTools", "JSON", "LibGit2", "Libdl", "MacroTools", "NNlib", "ProgressMeter", "Random", "Requires", "Tracker", "Zygote"]
 path = "../deps/nGraph"
 uuid = "96f067b3-e350-5ae7-90f2-8283c539009d"
 version = "0.1.0"
