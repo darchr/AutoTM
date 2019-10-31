@@ -86,7 +86,14 @@ function profile(
 
     handle_algo_selection!(cache, backend, data)
 
-    num_configs = sum(length(config_dict[node]) for node in nodes(data) if hasprofile(node))
+    # Determine the number of unique configs
+    all_configs = map(filter(hasprofile, nodes(data))) do node
+        return [(params(backend, node), config) for config in config_dict[node]]
+    end |> Iterators.flatten
+    println("Total Configs: $(length(collect(all_configs)))")
+    num_configs = length(unique(all_configs))
+
+    #num_configs = sum(length(config_dict[node]) for node in nodes(data) if hasprofile(node))
     progress_bar = Progress(num_configs, 0.2)
 
     # Setup a little update function for all configurations
@@ -128,7 +135,7 @@ function profile(
             if haskey(cache, key)
                 # Update the number of timings serviced from cached ops
                 ncached += 1
-                _update!(progress_bar, node, config, ncached)
+                #_update!(progress_bar, node, config, ncached)
 
                 settime!(node, config, cache[key])
                 push!(cached_configs, config)

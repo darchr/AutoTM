@@ -57,7 +57,7 @@ function offenders(I::ILPHolder, data::FunctionData, io_bytes)
         end
 
         # Check if we have a workspace and get the offset of the workspace
-        node = nodes(data)[index] 
+        node = nodes(data)[index]
         offset = nGraph.Lib.get_workspace_tensor_offset(nGraph.getpointer(unx(node)))
         tensor_size = nGraph.Lib.get_workspace_tensor_size(nGraph.getpointer(unx(node)))
         sz = (io_bytes + offset + tensor_size) / 1E6
@@ -277,11 +277,11 @@ function add_tensors!(frame::Frame)
         # Create a container for the critical edge from LOC_SOURCE to LOC_SINK if this is
         # an argument tensor
         skip_edge = []
-        if isarg(tensor) 
+        if isarg(tensor)
             # Find the source to sink edge.
             # Will error if this edge doesn't exist, so serves as a form of error checking
             edge = find_edge(
-                (g, e) -> getmeta(g, src(e)).location == LOC_SOURCE && 
+                (g, e) -> getmeta(g, src(e)).location == LOC_SOURCE &&
                           getmeta(g, dst(e)).location == LOC_SINK,
                 g
             )
@@ -334,44 +334,41 @@ function add_tensors!(frame::Frame)
             )
         end
     end
-
-    #add_tensor_groups!(frame)
-
     return nothing
 end
 
 # Assert that if a tensor group has more than one element in it, then
 # 1. Each tensor in the group is either a parameter or result.
 # 2. The shortcut edges from source to sink are identical.
-function add_tensor_groups!(frame)
-    data = frame.profile_data
-    model = frame.model 
-    tensor_graphs = model[:tensor_graphs]
-
-    group_to_tensors = Dict{Int, Vector{XTensor{XNode}}}()
-    for tensor in tensors(data)
-        v = get!(group_to_tensors, tensor.group, XTensor{XNode}[])
-        push!(v, tensor)
-    end
-
-    for tensors_in_group in values(group_to_tensors)
-        @assert all(isarg, tensors_in_group)
-        for a in tensors_in_group
-            for b in tensors_in_group
-                a == b && continue
-                println("Grouping Tensors: ", nGraph.name(unx(a)), " and ", nGraph.name(unx(b)))
-
-                # Find their shortcut edges
-                ea = find_shortcut_edge(a) 
-                eb = find_shortcut_edge(b)
-
-                @constraint(model, tensor_graphs[a, ea] == tensor_graphs[b, eb])
-            end
-        end
-    end
-    println("I'm finished :D")
-    return nothing
-end
+# function add_tensor_groups!(frame)
+#     data = frame.profile_data
+#     model = frame.model
+#     tensor_graphs = model[:tensor_graphs]
+#
+#     group_to_tensors = Dict{Int, Vector{XTensor{XNode}}}()
+#     for tensor in tensors(data)
+#         v = get!(group_to_tensors, tensor.group, XTensor{XNode}[])
+#         push!(v, tensor)
+#     end
+#
+#     for tensors_in_group in values(group_to_tensors)
+#         @assert all(isarg, tensors_in_group)
+#         for a in tensors_in_group
+#             for b in tensors_in_group
+#                 a == b && continue
+#                 println("Grouping Tensors: ", nGraph.name(unx(a)), " and ", nGraph.name(unx(b)))
+#
+#                 # Find their shortcut edges
+#                 ea = find_shortcut_edge(a)
+#                 eb = find_shortcut_edge(b)
+#
+#                 @constraint(model, tensor_graphs[a, ea] == tensor_graphs[b, eb])
+#             end
+#         end
+#     end
+#     println("I'm finished :D")
+#     return nothing
+# end
 
 # Filter on edge type, sort by parent index to get the edges in execution order.
 _find_edges(g, edgetype) = sort(
@@ -480,7 +477,7 @@ end
 function get_tensor_in_dram(F::Frame, tensor::XTensor, node::XNode)
     # First - check if the node is fixed. If it is fixed, then we can returna constant
     # depending on its location.
-    if isfixed(F, tensor) 
+    if isfixed(F, tensor)
         location = collect(locations(tensor))
         if length(location) != 1
             @show location
@@ -680,7 +677,7 @@ function islocalarg(frame, tensor::XTensor)
     isarg(tensor) || return false
 
     # Next - figure out if it was fixed in a memory pool.
-    if isfixed(frame, tensor) 
+    if isfixed(frame, tensor)
         location = first(locations(tensor))
         return location == DRAM
     end
