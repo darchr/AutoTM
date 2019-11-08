@@ -4,10 +4,12 @@ module CounterPlots
 replace_(x) = replace(String(x), "_" => " ")
 sumby(v, n) = [sum(@view(v[i:min(i+n-1, length(v))])) for i in 1:n:length(v)]
 
+include("Traffic.jl")
 using Serialization
 using Statistics
 using Dates
 using DataStructures
+using StructArrays
 
 using PGFPlotsX
 
@@ -37,6 +39,8 @@ function make_plot(
         selected_data[:total_sum] = map(sum, zip(values(selected_data)...))
         push!(names, :total_sum)
     end
+    _sums = Dict(k => sum(v) for (k,v) in selected_data)
+    display(_sums)
 
     # Plot the results
     plots = []
@@ -94,12 +98,7 @@ end
 #     index 2 -> socket 1
 #         NamedTuple of Measurements
 
-# Methods for querying and dealing with SystemSnoop style data.
-snoop_length(x::NamedTuple) = minimum(length, x)
-snoop_truncate(x, n) = resize!.(x, n)
-snoop_truncate(x::NamedTuple, n) = snoop_truncate(Tuple(x), n)
-
-function counters_for_socket(x::NamedTuple, i)
+function counters_for_socket(x, i)
     array_of_nt = getindex.(x.counters, i)
     # Convert to dictionary - make life easier on ourselves
     return Dict(n => getproperty.(array_of_nt, n) for n in keys(first(array_of_nt)))
@@ -110,17 +109,34 @@ isscratchpad(x) = occursin("scratchpad", x)
 # Look in the `data` directory - deserialize all files that match `prefix`.
 # Furthermore - do a pairwise merging of the named tuple entries as long as the difference
 # in lengths between the everything is with `max_truncate`.
-function load(prefix; f = x -> true, max_truncate = 5, socket = 2)
+function load(
+        prefix,
+        nt = NamedTuple();
+        # keyword arguments
+        f = x -> true,
+        max_truncate = 5,
+        socket = 2,
+        dir = DATADIR,
+        show = false,
+    )
+
     # Get all files matching the prefix and possibly the suffix and deserialize
-    files = filter(x -> startswith(x, prefix) && f(x), readdir(DATADIR))
-    data = deserialize.(joinpath.(DATADIR, files))
+    files = filter(x -> startswith(x, prefix) && f(x), readdir(dir))
+    for (k,v) in pairs(nt)
+        str = "_$(Traffic.modify(k, v))_"
+        filter!(x -> occursin(str, x), files)
+    end
+
+    show && (@show files)
+
+    data = StructArray.(deserialize.(joinpath.(dir, files)))
 
     # Check if number of samples is about the same.
-    min, max = extrema(snoop_length, data)
+    min, max = extrema(length, data)
     if max - min > max_truncate
-        error("Sizes of data not within $max_truncate. Sizes are: $(snoop_length.(data))")
+        error("Sizes of data not within $max_truncate. Sizes are: $(length.(data))")
     end
-    snoop_truncate.(data, min)
+    resize!.(data, min)
     counters = counters_for_socket.(data, socket)
     return reduce(merge, counters)
 end
@@ -277,13 +293,13 @@ end
 ##### Plot summary statistics
 #####
 
-function barplot(records::OrderedDict{String, <:Dict}, ks; 
+function barplot(records::OrderedDict{String, <:Dict}, ks;
         modifier = identity,
         reducer = ssum,
         ylabel = "",
         title = "",
     )
-    # For each entry in outer dict, take the total sum of the values of interest for each 
+    # For each entry in outer dict, take the total sum of the values of interest for each
     # inner dict.
     records = map(collect(keys(records))) do name
         v = records[name]
@@ -292,7 +308,7 @@ function barplot(records::OrderedDict{String, <:Dict}, ks;
 
     # Bar plots to add.
     plots = []
-      
+
     for (name, data) in records
         # Generate the `x` and `y` coordinates for this sample
         x = replace_.(ks)

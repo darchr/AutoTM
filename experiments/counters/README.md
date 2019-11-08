@@ -16,6 +16,10 @@ sudo <path-to-julia> counters.jl
 In a separate console window, run either `run_1lm.sh` or `run_2lm.sh` as appropriate.
 If you desire to run only a subset of these workloads, edit the run scripts.
 
+## Getting Stats on 2LM Read-Only Characteristics
+
+This is what `reader.jl` is supposed to do.
+
 ## Generating LaTeX allocation plots.
 
 Generating the LaTeX plots for the heap allocations is time intensive and kind of a hassle.

@@ -2,8 +2,8 @@
 #
 # If will watch a named pipe for instructions from a master process on when to begin
 # sampling and when to end.
-using Pkg; Pkg.activate("../../AutoTM")
 
+include("init.jl")
 using Sockets
 using Snooper
 using SystemSnoop
@@ -41,14 +41,11 @@ function sample(sock, sampletime, filepath, counter_tuple)
             end
         end
 
-        data = SystemSnoop.snoop(SystemSnoop.SnoopedProcess(getpid()), measurements) do snooper
+        data = SystemSnoop.snoop(measurements) do snooper
             while true
                 # Sleep until it's time to sample.
                 sleep(sampler)
-
-                # If something goes wrong during measurement, `measure` will return `false`.
-                # We handle that gracefully by performing an early exit.
-                measure(snooper) || break
+                SystemSnoop.measure!(snooper)
 
                 # See if we have any communication from the master process. If so, pull it
                 # out and make sure it's a `stop` command.
@@ -57,7 +54,6 @@ function sample(sock, sampletime, filepath, counter_tuple)
                     break
                 end
             end
-            return snooper.trace
         end
     end
 
@@ -137,7 +133,15 @@ while true
                     unc_clocks = Snooper.unc_clocks(),
                     pmm_rq = Snooper.pmm_rq(),
                     pmm_wq = Snooper.pmm_wq(),
-                    pmm_underfill_read = Snooper.pmm_underfill_rd(),
+                    pmm_cmd = Snooper.all_pmm_cmd(),
+                )
+
+            elseif payload == "dram-queues"
+                counter_tuple = (
+                    unc_clocks = Snooper.unc_clocks(),
+                    dram_rq = Snooper.dram_rq(),
+                    dram_wq = Snooper.dram_wq(),
+                    pmm_cmd = Snooper.all_pmm_cmd(),
                 )
 
             # Check the functional difference between the `read command` and

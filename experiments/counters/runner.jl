@@ -22,8 +22,7 @@ pipe_name = "counter_pipe"
 #####
 
 # Activate the AutoTM environment, which will load all the correct versions of dependencies
-using Pkg
-Pkg.activate("../../AutoTM")
+include("init.jl")
 
 using Dates
 using AutoTM
@@ -302,7 +301,7 @@ function main()
 
     # Setup some static data structures
     backend = AutoTM.Backend("CPU")
-    cache = AutoTM.Profiler.CPUKernelCache(AutoTM.Experiments.SINGLE_KERNEL_PATH)
+    cache = AutoTM.Profiler.CPUKernelCache(AutoTM.Experiments.CPU_CACHE)
 
     workloads = parsed_args["workload"]
 
