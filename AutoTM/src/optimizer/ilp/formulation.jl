@@ -27,8 +27,8 @@ end
 # The general idea is that heap fragmentation causes the actual allocated amount to
 # exceed the limit.
 #
-# To deal with this, we take the FIRST instance where the memory limit is exceeded due
-# to fragmentation and reduce the DRAM limit for the node just BEFORE that instance.
+# To deal with this, we take the ALL instances where the memory limit is exceeded due
+# to fragmentation and reduce the DRAM limit for the nodes around this instance.
 #
 # This should cause the ngraph allocator to free up some space so we don't go over the
 # limit.

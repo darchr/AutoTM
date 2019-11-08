@@ -44,6 +44,9 @@ pmm_rq() = perf_event(0xe0) + perf_umask(0x1)
 "Write Pending Queue Occupancy of all write requests for Intel Optane DC persistent memory"
 pmm_wq() = perf_event(0xe4) + perf_umask(0x1)
 
+dram_rq() = perf_event(0x80) + perf_umask(0x0)
+dram_wq() = perf_event(0x81) + perf_umask(0x0)
+
 "Underfill read commands for Intel Optane DC persistent memory"
 pmm_underfill_rd() = perf_event(0xea) + perf_umask(0x8)
 
@@ -83,20 +86,14 @@ end
 
 # Return type from measurements for a single socket
 const _NT{NCH} = NTuple{NCH,Int}
-function uncore_measurements(::Uncore{NS,NIMC,NCH,names}) where {NS,NIMC,NCH,names}
-    return NamedTuple{names, NTuple{4,_NT{NCH}}}
-end
+SystemSnoop.allow_rettype(::Uncore) = Val{true}()
 
-function SystemSnoop.prepare(U::Uncore{NS, NIMC, NCH}, args...) where {NS, NIMC, NCH}
+function SystemSnoop.prepare(U::Uncore{NS, NIMC, NCH}, kw) where {NS, NIMC, NCH}
     # Sample once to clear running counters
     PCM.sample!(U.monitor)
-
-    # Calculate the return type
-    rettype = NTuple{NS, uncore_measurements(U)}
-    return Vector{rettype}()
 end
 
-function SystemSnoop.measure(U::Uncore{NS, NIMC, NCH, names}) where {NS, NIMC, NCH,names}
+function SystemSnoop.measure(U::Uncore{NS, NIMC, NCH, names}, kw) where {NS, NIMC, NCH,names}
     PCM.sample!(U.monitor)
     return map(Tuple(1:NS)) do idx
         # Subtract 1 to get the socket
@@ -116,28 +113,4 @@ const DEFAULT_NT = (
     pmm_writes  = pmm_write_cmd(),
 )
 
-function go(pid, sampletime = 10; nt = DEFAULT_NT)
-    measurements = (
-        timestamp = SystemSnoop.Timestamp(),
-        counters = Uncore{2,2,6}(nt)
-    )
-
-    # Catch interrupts for now so we can manually abort.
-    sampler = SystemSnoop.SmartSample(Second(sampletime))
-    data = SystemSnoop.snoop(SystemSnoop.SnoopedProcess(pid), measurements) do snooper
-        try
-            while true
-                sleep(sampler)
-                measure(snooper) || break
-            end
-        catch err
-            if !isa(err, InterruptException)
-                rethrow(err)
-            end
-        end
-        return snooper.trace
-    end
-    return data
 end
-
-end # module
