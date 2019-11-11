@@ -6,9 +6,59 @@ using Dates
 using PCM
 using SystemSnoop
 
+# Clean up any running counters from a previous run.
+function __init__()
+    PCM.cleanup()
+    PCM.reset()
+end
+
 # See `pcm/types.h - lines 746-747`
 perf_event(x) = (UInt(x) << 0)
 perf_umask(x) = (UInt(x) << 8)
+
+#####
+##### PCM Core
+#####
+
+# By default - all our experiments happen on Socket 2 (of 2) - only gather counter values
+# for CPU 0 on each socket.
+#
+# `numactl` makes sure that threads run on the correct cores.
+default_cpu_mask() = 25:48
+
+# Type stable wrapping for making the return value of SystemSnoop nice.
+struct CoreMonitorWrapper{names}
+    monitor::PCM.CoreMonitor
+end
+
+default_events() = [
+    PCM.EventDescription(0x08, 0x0E, :dtlb_load_miss),
+    PCM.EventDescription(0x49, 0x0E, :dtlb_store_miss),
+    PCM.EventDescription(0xD0, 0x11, :stlb_load_miss),
+    PCM.EventDescription(0xD0, 0x12, :stlb_store_miss),
+]
+
+function CoreMonitorWrapper(;events = default_events(), cores = default_cpu_mask())
+    monitor = PCM.CoreMonitor(; cores = cores)
+    PCM.program(monitor, events)
+    names = ntuple(i -> events[i].name, length(events))
+    return CoreMonitorWrapper{names}(monitor)
+end
+
+# SystemSnoop API
+SystemSnoop.prepare(C::CoreMonitorWrapper) = PCM.sample!(C.monitor)
+
+function SystemSnoop.measure(C::CoreMonitorWrapper{names}) where {names}
+    PCM.sample!(C.monitor)
+    vals = PCM.getcounters(C.monitor)
+    return NamedTuple{names}(ntuple(i -> vals[i], length(names)))
+end
+
+SystemSnoop.clean(::CoreMonitorWrapper) = PCM.cleanup()
+
+#####
+##### PCM Uncore
+#####
 
 # some common events from download.01.org
 "All DRAM Read CAS Commands issued (including underfills)"
@@ -56,6 +106,9 @@ pmm_read_insert() = perf_event(0xe3) + perf_umask(0x0)
 "Write requests allocated in the PMM Write Pending Queue for Intel Optane DC persistent memory"
 pmm_write_insert() = perf_event(0xe7) + perf_umask(0x0)
 
+llc_data_read() = perf_event(0x34) + perf_umask(0x3)
+llc_data_write() = perf_event(0x34) + perf_umask(0x5)
+
 makevar(i) = "PCM_COUNTER_$(i-1)"
 function setvars(nt::NamedTuple)
     # Iterate through the named tuple - programming!
@@ -86,7 +139,6 @@ end
 
 # Return type from measurements for a single socket
 const _NT{NCH} = NTuple{NCH,Int}
-SystemSnoop.allow_rettype(::Uncore) = Val{true}()
 
 function SystemSnoop.prepare(U::Uncore{NS, NIMC, NCH}, kw) where {NS, NIMC, NCH}
     # Sample once to clear running counters

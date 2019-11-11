@@ -122,6 +122,12 @@ git-tree-sha1 = "c4c13474d23c60d20a67b217f1d7f22a40edf8f1"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 version = "1.1.0"
 
+[[PAPI]]
+deps = ["BinaryProvider", "Libdl"]
+path = "../../deps/PAPI"
+uuid = "25707955-362c-5858-b477-b2b4559b2019"
+version = "0.1.0"
+
 [[PCM]]
 deps = ["CxxWrap", "LibGit2"]
 path = "../../deps/PCM"
@@ -189,7 +195,7 @@ deps = ["Distributed", "Mmap", "Random", "Serialization"]
 uuid = "1a1011a3-84de-559e-8e89-a11a2f7dc383"
 
 [[Snooper]]
-deps = ["Dates", "PCM", "SystemSnoop", "UnicodePlots"]
+deps = ["Dates", "PAPI", "PCM", "SystemSnoop", "UnicodePlots"]
 path = "../../Snooper"
 uuid = "f30c1ba8-7693-4b1e-8e6d-7c42fdf2893a"
 version = "0.1.0"

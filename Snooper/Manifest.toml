@@ -4,10 +4,10 @@
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 
 [[BinaryProvider]]
-deps = ["Libdl", "Logging", "SHA"]
-git-tree-sha1 = "c7361ce8a2129f20b0e05a89f7070820cfed6648"
+deps = ["Libdl", "SHA"]
+git-tree-sha1 = "5b08ed6036d9d3f0ee6369410b830f8873d4024c"
 uuid = "b99e7846-7c00-51b0-8f62-c81ae34c0232"
-version = "0.5.6"
+version = "0.5.8"
 
 [[CxxWrap]]
 deps = ["BinaryProvider", "Libdl"]
@@ -22,9 +22,9 @@ version = "1.1.0"
 
 [[DataStructures]]
 deps = ["InteractiveUtils", "OrderedCollections"]
-git-tree-sha1 = "f94423c68f2e47db0d6f626a26d4872266e0ec3d"
+git-tree-sha1 = "1fe8fad5fc84686dcbc674aa255bc867a64f8132"
 uuid = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
-version = "0.17.2"
+version = "0.17.5"
 
 [[Dates]]
 deps = ["Printf"]
@@ -67,9 +67,15 @@ git-tree-sha1 = "c4c13474d23c60d20a67b217f1d7f22a40edf8f1"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 version = "1.1.0"
 
+[[PAPI]]
+deps = ["BinaryProvider", "Libdl"]
+path = "../deps/PAPI"
+uuid = "25707955-362c-5858-b477-b2b4559b2019"
+version = "0.1.0"
+
 [[PCM]]
 deps = ["CxxWrap", "LibGit2"]
-path = "../PCM"
+path = "../deps/PCM"
 uuid = "7d644800-0fd4-5f4f-871b-eb28bd968194"
 version = "0.1.0"
 
@@ -123,7 +129,7 @@ version = "0.32.0"
 
 [[SystemSnoop]]
 deps = ["Dates", "RecipesBase", "Requires", "Serialization"]
-path = "../SystemSnoop"
+path = "../deps/SystemSnoop"
 uuid = "c30797a9-91c2-5451-bcc7-95710ac2a28d"
 version = "0.1.0"
 

@@ -127,7 +127,9 @@ function vector_increment(
 end
 
 # Linear Feedback Shift Register
-struct LFSR{D,F} end
+struct LFSR{D}
+    feedback::Int
+end
 modify(::LFSR{D}) where {D} = D
 
 Base.length(::LFSR{D}) where {D} = (2^D) - 1
@@ -135,28 +137,28 @@ Base.length(::LFSR{D}) where {D} = (2^D) - 1
 # Implement LFSRs for some sizes.
 # Coefficients are taken from https://users.ece.cmu.edu/~koopman/lfsr/index.html
 # Becuase of our implementation, we have to chop off the MSB
-_trunc(x, b) = convert(Int, x & ~(1 << (b-1)))
 const FEEDBACK = Dict(
-     8 => _trunc(0x8E, 8),
-    25 => _trunc(0x1000004, 25),
-    26 => _trunc(0x2000023, 26),
-    27 => _trunc(0x4000013, 27)
-    28 => _trunc(0x8000004, 28)
-    29 => _trunc(0x8000004, 29),
-    30 => _trunc(0x20000029, 30),
+     8 => 0x8E,
+    25 => 0x1000004,
+    26 => 0x2000023,
+    27 => 0x4000013,
+    28 => 0x8000004,
+    29 => 0x8000004,
+    30 => 0x20000029,
+    31 => 0x40000004,
+    32 => 0x80000057,
+    33 => 0x100000029,
+    34 => 0x200000073,
 )
 
-@inline Base.iterate(::LFSR) = (1, (1, 1))
-@inline function Base.iterate(::LFSR{D,F}, state) where {D,F}
-    previous = state[1]
-    count =  state[2]
-    count == ((1 << D) - 1) && return nothing
+@inline Base.iterate(::LFSR) = (1, 1)
+@inline function Base.iterate(L::LFSR, previous)
+    feedback = isodd(previous) ? L.feedback : 0
+    next = xor(previous >> 1, feedback)
 
-    lsb = previous & 1
-    x = (previous >> 1) | (lsb << (D - 1))
-    feedback = (lsb == 1) ? F : 0
-    term = xor(x, feedback)
-    return term, (term, count + 1)
+    # If the new term is 1, we're back where we started, so abort
+    isone(next) && return nothing
+    return next, next
 end
 
 function hop_sum(A::AbstractArray{T}, ::Val{N}, lfsr) where {T,N}
@@ -193,12 +195,11 @@ function hop_increment(A::AbstractArray{T}, ::Val{N}, lfsr) where {T,N}
 end
 
 @inline function _hop_increment(A::AbstractArray{Vec{N,T}}, lfsr) where {N,T}
-    s = one(eltype(A))
     base = Base.unsafe_convert(Ptr{T}, pointer(A))
     @inbounds for i in lfsr
         ptr = base + sizeof(eltype(A)) * (i-1)
         v = vload(Vec{N,T}, ptr, Val{true}())
-        vstore(v + s, ptr, Val{true}())
+        vstore(v + one(eltype(A)), ptr, Val{true}())
     end
 end
 

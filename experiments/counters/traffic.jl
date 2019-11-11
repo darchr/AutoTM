@@ -53,6 +53,15 @@ function parse_commandline()
             default = 1
             help = "The number of seconds between sampling the hardware counters"
 
+        "--counter_region"
+            arg_type = String
+            default = "uncore"
+            range_tester = x -> in(x, ("uncore", "core"))
+            help = """
+            Select between [core] and [uncore]. Default: uncore.
+            """
+
+
         "--counter_type"
             arg_type = String
             default = ["rw"]
@@ -93,7 +102,13 @@ end
 function benchmark(A::Array, parsed_args, pipe)
     # Set up a bunch of nested loops to run through all the variations of tests we want
     # to execute.
-    fns = [Traffic.vector_sum, Traffic.vector_write, Traffic.vector_increment]
+    fns = [
+        # Run `sum` twice to make sure everything is compiled.
+        Traffic.vector_sum,
+        Traffic.vector_sum,
+        Traffic.vector_write,
+        Traffic.vector_increment
+    ]
     vector_sizes = [16, 8]
     nontemporal = [false, true]
 
@@ -105,7 +120,7 @@ function benchmark(A::Array, parsed_args, pipe)
             nontemporal = Val{nt}(),
         )
 
-        run(f, A, parsed_args, pipe, nt)
+        #run(f, A, parsed_args, pipe, nt)
     end
 
     # `hop` is special.
@@ -116,9 +131,10 @@ function benchmark(A::Array, parsed_args, pipe)
 
     nt = (
         vector = Val{vector_size}(),
-        lfsr = Traffic.LFSR{lfsr_size, Traffic.FEEDBACK[lfsr_size]}(),
+        lfsr = Traffic.LFSR{lfsr_size}(Traffic.FEEDBACK[lfsr_size]),
     )
 
+    run(Traffic.hop_sum, A, parsed_args, pipe, nt)
     run(Traffic.hop_sum, A, parsed_args, pipe, nt)
     run(Traffic.hop_write, A, parsed_args, pipe, nt)
     run(Traffic.hop_increment, A, parsed_args, pipe, nt)
@@ -130,40 +146,72 @@ function run(f, A, parsed_args, pipe, nt)
     threadme(f, A, nt...; prepare = true)
     iters = parsed_args["inner_iterations"]
 
-    for counter_set in parsed_args["counter_type"]
-        # Create a named tuple of the all the run parameters.
+    counter_region = parsed_args["counter_region"]
+
+    if counter_region == "uncore"
+        for counter_set in parsed_args["counter_type"]
+            # Create a named tuple of the all the run parameters.
+            params = (
+                sz = div(sizeof(A), 10^9),
+                mode = parsed_args["mode"],
+                counters = counter_set,
+                threads = Threads.nthreads(),
+            )
+
+            params = merge(params, nt)
+            filepath = Traffic.make_filename(f, params)
+            @show filepath
+
+            println("Running Counters: $(counter_set)")
+
+            # Setup the counters
+            println(pipe, "filepath $filepath")
+            println(pipe, "counter_region uncore")
+            println(pipe, "counters $(counter_set)")
+            println(pipe, "start")
+            sleep(2)
+            threadme(f, A, nt...; iterations = iters)
+            sleep(2)
+            println(pipe, "stop")
+        end
+    else
         params = (
             sz = div(sizeof(A), 10^9),
             mode = parsed_args["mode"],
+            counters = "core",
+            threads = Threads.nthreads(),
         )
-        params = merge(params, nt, (counters = counter_set,))
+
+        params = merge(params, nt)
         filepath = Traffic.make_filename(f, params)
         @show filepath
 
-        println("Running Counters: $(counter_set)")
-
         # Setup the counters
         println(pipe, "filepath $filepath")
-        println(pipe, "counters $(counter_set)")
+        println(pipe, "counter_region core")
         println(pipe, "start")
         sleep(2)
-        for i in 1:iters
-            println("Iteration $i: ")
-            threadme(f, A, nt...)
-        end
+        threadme(f, A, nt...; iterations = iters)
         sleep(2)
         println(pipe, "stop")
     end
     return nothing
 end
 
-function threadme(f, A, args...; prepare = false)
+function threadme(f, A, args...; prepare = false, iterations = 1)
     nthreads = Threads.nthreads()
     @assert iszero(mod(length(A), nthreads))
     step = div(length(A), nthreads)
     Threads.@threads for i in 1:Threads.nthreads()
-        x = view(A, (step * (i-1) + 1):(step * i))
-        f(x, args...)
+        threadid = Threads.threadid()
+        start = step * (i-1) + 1
+        stop = step * i
+        x = view(A, start:stop)
+
+        # Run the inner loop
+        for j in 1:iterations
+            f(x, args...)
+        end
     end
     return nothing
 end
@@ -182,14 +230,12 @@ function assign_affinities(cpustart = 24)
     # The rest of the threads are extra Julia threads.
     threads = split(chomp(read(pipeline(`ps -e -T`, `grep $pid`), String)), "\n")
 
-    display(threads)
     julia_thread_strings = vcat(threads[1], threads[10:end])
     @assert length(julia_thread_strings) == Threads.nthreads()
 
     # Parse out the thread PID
     _parse(x) = parse(Int, split(x)[2])
     julia_threads = _parse.(julia_thread_strings)
-    display(julia_threads)
 
     # Start assigning affinity.
     for (index, pid) in enumerate(julia_threads)
@@ -199,7 +245,7 @@ function assign_affinities(cpustart = 24)
 end
 
 function main()
-    assign_affinities()
+    #assign_affinities()
     parsed_args = parse_commandline()
 
     # Allocate and instantiate the array

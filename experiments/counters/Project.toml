@@ -1,6 +1,7 @@
 [deps]
 ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
 DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
+PAPI = "25707955-362c-5858-b477-b2b4559b2019"
 PCM = "7d644800-0fd4-5f4f-871b-eb28bd968194"
 PGFPlotsX = "8314cec4-20b6-5062-9cdb-752b83310925"
 SIMD = "fdea26ae-647d-5447-a871-4b548cad5224"

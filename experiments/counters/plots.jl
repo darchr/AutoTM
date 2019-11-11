@@ -97,9 +97,15 @@ end
 #         NamedTuple of Measurements
 #     index 2 -> socket 1
 #         NamedTuple of Measurements
+#
+# To make matters worse, we now have to deal with both Core and Uncore counters.
+#
+# Add a layer of indirection for handling the difference.
+peel(x::Tuple, i) = x[i]
+peel(x::NamedTuple, i) = x
 
 function counters_for_socket(x, i)
-    array_of_nt = getindex.(x.counters, i)
+    array_of_nt = peel.(x.counters, i)
     # Convert to dictionary - make life easier on ourselves
     return Dict(n => getproperty.(array_of_nt, n) for n in keys(first(array_of_nt)))
 end

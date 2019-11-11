@@ -10,13 +10,7 @@ using SystemSnoop
 using Dates
 using Serialization
 
-function sample(sock, sampletime, filepath, counter_tuple)
-    # Create a measurements object from SystemSnoop
-    measurements = (
-        timestamp = SystemSnoop.Timestamp(),
-        counters = Snooper.Uncore{2,2,6}(counter_tuple)
-    )
-
+function sample(sock, sampletime, filepath, measurements)
     # Sample time regularly.
     sampler = SystemSnoop.SmartSample(Second(sampletime))
 
@@ -41,7 +35,8 @@ function sample(sock, sampletime, filepath, counter_tuple)
             end
         end
 
-        data = SystemSnoop.snoop(measurements) do snooper
+        # Forward `pid` to the PAPI counters.
+        data = SystemSnoop.snoop(measurements; pid = getpid()) do snooper
             while true
                 # Sleep until it's time to sample.
                 sleep(sampler)
@@ -80,6 +75,7 @@ while true
     sampletime = 1
     filepath = "test.jls"
     counter_tuple = Snooper.DEFAULT_NT
+    counter_region = :uncore
 
     # Expand commands to be of the form
     # `keyword payload`
@@ -91,9 +87,23 @@ while true
     while isopen(sock)
         cmd = readline(sock)
         if cmd == "start"
+
+            # Create a measurements object from SystemSnoop
+            if counter_region == :uncore
+                measurements = (
+                    timestamp = SystemSnoop.Timestamp(),
+                    counters = Snooper.Uncore{2,2,6}(counter_tuple),
+                )
+            else
+                measurements = (
+                    timestamp = SystemSnoop.Timestamp(),
+                    counters = Snooper.CoreMonitorWrapper(),
+                )
+            end
+
             # Guard with GC calls to clean up PCM objects.
             GC.gc()
-            sample(sock, sampletime, filepath, counter_tuple)
+            sample(sock, sampletime, filepath, measurements)
             GC.gc()
 
         # Key: "sampletime"
@@ -107,6 +117,17 @@ while true
         elseif startswith(cmd, "filepath")
             filepath = last(split(cmd))
             println("filepath = $filepath")
+
+        elseif startswith(cmd, "counter_region")
+            payload = last(split(cmd))
+            println("Updating Counter Region to: ", payload)
+            if payload == "uncore"
+                counter_region = :uncore
+            elseif payload == "core"
+                counter_region = :core
+            else
+                println("Unknown Counter Region $payload")
+            end
 
         # Key: counters
         # Payload options:
@@ -125,7 +146,7 @@ while true
                     tag_hit = Snooper.tagchk_hit(),
                     tag_miss_clean = Snooper.tagchk_miss_clean(),
                     tag_miss_dirty = Snooper.tagchk_miss_dirty(),
-                    pmm_underfill_read = Snooper.pmm_underfill_rd(),
+                    llc_read_hit = Snooper.llc_data_read(),
                 )
 
             elseif payload == "queues"
