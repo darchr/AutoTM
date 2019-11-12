@@ -109,8 +109,8 @@ function benchmark(A::Array, parsed_args, pipe)
         Traffic.vector_write,
         Traffic.vector_increment
     ]
-    vector_sizes = [16, 8]
-    nontemporal = [false, true]
+    vector_sizes = [16]
+    nontemporal = [false]
 
     for (f, sz, nt) in Iterators.product(fns, vector_sizes, nontemporal)
         # Create a NamedTuple of parameters to forward to the function.
@@ -120,11 +120,10 @@ function benchmark(A::Array, parsed_args, pipe)
             nontemporal = Val{nt}(),
         )
 
-        #run(f, A, parsed_args, pipe, nt)
+        run(f, A, parsed_args, pipe, nt)
     end
 
-    # `hop` is special.
-    #run(Traffic.hop, A, parsed_args, pipe, NamedTuple())
+    # Prepare for the random access benchmarks.
     sz = parsed_args["array-size"]
     vector_size = 16
     lfsr_size = sz - convert(Int, log2(vector_size))

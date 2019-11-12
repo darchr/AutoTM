@@ -129,7 +129,7 @@ function load(
     # Get all files matching the prefix and possibly the suffix and deserialize
     files = filter(x -> startswith(x, prefix) && f(x), readdir(dir))
     for (k,v) in pairs(nt)
-        str = "_$(Traffic.modify(k, v))_"
+        str = "_$(Traffic.modify(k, v))"
         filter!(x -> occursin(str, x), files)
     end
 
