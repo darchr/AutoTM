@@ -10,11 +10,11 @@ struct KernelParams
     measurements::Vector{Any}
 end
 
-function runkernels(params; delete_old = false)
+function runkernels(params, x::Type{T} = Vector{Float32}; delete_old = false) where T
     # Allocate and instantiate the array
     sz = Threads.nthreads() * (2 ^ params.array_size)
     @show sz
-    A = Vector{Float32}(undef, sz)
+    A = T(undef, sz)
     threadme(vector_write, A, Val{16}())
 
     # Setup the counter
@@ -25,7 +25,7 @@ function runkernels(params; delete_old = false)
     benchmark(A, pipe, params; delete_old = delete_old)
 end
 
-function benchmark(A::Array, pipe, params::KernelParams; delete_old = false)
+function benchmark(A::AbstractArray, pipe, params::KernelParams; delete_old = false)
     # Set up a bunch of nested loops to run through all the variations of tests we want
     # to execute.
     fns = [
@@ -35,17 +35,17 @@ function benchmark(A::Array, pipe, params::KernelParams; delete_old = false)
         vector_increment
     ]
     vector_sizes = [16]
-    nontemporal = [false]
+    nontemporal = [false, true]
 
-    for (f, sz, nt) in Iterators.product(fns, vector_sizes, nontemporal)
+    for (f, sz, _nt) in Iterators.product(fns, vector_sizes, nontemporal)
         # Create a NamedTuple of parameters to forward to the function.
         nt = (
             vector = Val{sz}(),
             aligned = Val{true}(),
-            nontemporal = Val{nt}(),
+            nontemporal = Val{_nt}(),
         )
 
-        run(f, A, pipe, params, nt; delete_old = delete_old)
+        #run(f, A, pipe, params, nt; delete_old = delete_old)
     end
 
     # Prepare for the random access benchmarks.
@@ -53,14 +53,17 @@ function benchmark(A::Array, pipe, params::KernelParams; delete_old = false)
     vector_size = 16
     lfsr_size = sz - convert(Int, log2(vector_size))
 
-    nt = (
-        vector = Val{vector_size}(),
-        lfsr = LFSR{lfsr_size}(FEEDBACK[lfsr_size]),
-    )
+    for _nt in nontemporal
+        nt = (
+            vector = Val{vector_size}(),
+            lfsr = LFSR{lfsr_size}(FEEDBACK[lfsr_size]),
+            nontemporal = Val{_nt}(),
+        )
 
-    run(hop_sum, A, pipe, params, nt; delete_old = delete_old)
-    run(hop_write, A, pipe, params, nt; delete_old = delete_old)
-    run(hop_increment, A, pipe, params, nt; delete_old = delete_old)
+        run(hop_sum, A, pipe, params, nt; delete_old = delete_old)
+        run(hop_write, A, pipe, params, nt; delete_old = delete_old)
+        run(hop_increment, A, pipe, params, nt; delete_old = delete_old)
+    end
     return nothing
 end
 
@@ -75,7 +78,7 @@ function run(f, A, pipe, params, nt; delete_old = false)
         # Create a named tuple of the all the run parameters.
         params = (
             sz = div(sizeof(A), 10^9),
-            mode = "2lm",
+            mode = params.mode,
             threads = Threads.nthreads(),
         )
 
@@ -96,24 +99,6 @@ function run(f, A, pipe, params, nt; delete_old = false)
         threadme(f, A, nt...; iterations = iters)
         sleep(2)
         println(pipe, "stop")
-    end
-    return nothing
-end
-
-function threadme(f, A, args...; prepare = false, iterations = 1)
-    nthreads = Threads.nthreads()
-    @assert iszero(mod(length(A), nthreads))
-    step = div(length(A), nthreads)
-    Threads.@threads for i in 1:Threads.nthreads()
-        threadid = Threads.threadid()
-        start = step * (i-1) + 1
-        stop = step * i
-        x = view(A, start:stop)
-
-        # Run the inner loop
-        for j in 1:iterations
-            f(x, args...)
-        end
     end
     return nothing
 end

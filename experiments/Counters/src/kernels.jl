@@ -115,45 +115,45 @@ end
 ##### Random Access Kernels
 #####
 
-function hop_sum(A::AbstractArray{T}, ::Val{N}, lfsr) where {T,N}
-    return _hop_sum(reinterpret(Vec{N,T}, A), lfsr)
+function hop_sum(A::AbstractArray{T}, ::Val{N}, lfsr, nontemporal = Val{false}()) where {T,N}
+    return _hop_sum(reinterpret(Vec{N,T}, A), lfsr, nontemporal)
 end
 
-@inline function _hop_sum(A::AbstractArray{Vec{N,T}}, lfsr) where {N,T}
+@inline function _hop_sum(A::AbstractArray{Vec{N,T}}, lfsr, nontemporal = Val{false}()) where {N,T}
     s = zero(eltype(A))
     base = Base.unsafe_convert(Ptr{T}, pointer(A))
     @inbounds for i in lfsr
         ptr = base + sizeof(eltype(A)) * (i-1)
-        v = vload(Vec{N,T}, ptr, Val{true}())
+        v = vload(Vec{N,T}, ptr, Val{true}(), nontemporal)
         s += v
     end
     return s
 end
 
-function hop_write(A::AbstractArray{T}, ::Val{N}, lfsr) where {T,N}
-    return _hop_write(reinterpret(Vec{N,T}, A), lfsr)
+function hop_write(A::AbstractArray{T}, ::Val{N}, lfsr, nontemporal = Val{false}()) where {T,N}
+    return _hop_write(reinterpret(Vec{N,T}, A), lfsr, nontemporal)
 end
 
-@inline function _hop_write(A::AbstractArray{Vec{N,T}}, lfsr) where {N,T}
+@inline function _hop_write(A::AbstractArray{Vec{N,T}}, lfsr, nontemporal = Val{false}()) where {N,T}
     s = zero(eltype(A))
     base = Base.unsafe_convert(Ptr{T}, pointer(A))
     @inbounds for i in lfsr
         ptr = base + sizeof(eltype(A)) * (i-1)
-        vstore(s, ptr, Val{true}())
+        vstore(s, ptr, Val{true}(), nontemporal)
     end
     return nothing
 end
 
-function hop_increment(A::AbstractArray{T}, ::Val{N}, lfsr) where {T,N}
-    return _hop_increment(reinterpret(Vec{N,T}, A), lfsr)
+function hop_increment(A::AbstractArray{T}, ::Val{N}, lfsr, nontemporal = Val{false}()) where {T,N}
+    return _hop_increment(reinterpret(Vec{N,T}, A), lfsr, nontemporal)
 end
 
-@inline function _hop_increment(A::AbstractArray{Vec{N,T}}, lfsr) where {N,T}
+@inline function _hop_increment(A::AbstractArray{Vec{N,T}}, lfsr, nontemporal = Val{false}()) where {N,T}
     base = Base.unsafe_convert(Ptr{T}, pointer(A))
     @inbounds for i in lfsr
         ptr = base + sizeof(eltype(A)) * (i-1)
-        v = vload(Vec{N,T}, ptr, Val{true}())
-        vstore(v + one(eltype(A)), ptr, Val{true}())
+        v = vload(Vec{N,T}, ptr, Val{true}(), nontemporal)
+        vstore(v + one(eltype(A)), ptr, Val{true}(), nontemporal)
     end
 end
 

@@ -99,3 +99,33 @@ function run_2lm_exceeds_dram()
 
     runkernels(params; delete_old = true)
 end
+
+function pmm_direct_test()
+    measurements = [
+        # Bandwidth statistics
+        () -> uncore_events((
+            dram_reads  = cas_count_rd(),
+            dram_writes = cas_count_wr(),
+            pmm_reads   = pmm_read_cmd(),
+            pmm_writes  = pmm_write_cmd(),
+        )),
+        # Queue Depths
+        () -> uncore_events((
+            unc_clocks  = unc_clocks(),
+            pmm_rq      = pmm_rq(),
+            pmm_wq      = pmm_wq(),
+            dram_wq     = dram_wq(),
+        )),
+    ]
+
+    params = KernelParams(
+        29,     # Back to small arrays :D
+        1.0,
+        "1lm",
+        5,
+        measurements,
+    )
+
+    # Run these experiments with a PersistentArray instead of a normal array.
+    runkernels(params, PersistentArray{Float32}; delete_old = true)
+end

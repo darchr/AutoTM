@@ -119,3 +119,29 @@ function hugepage_mmap(::Type{T}, dim::Integer, pagesize::AbstractPageSize) wher
     end
     return A
 end
+
+#####
+##### Custom Threading
+#####
+
+# Break up an array into a bunch of views and distribute them across threads.
+#
+# This makes sure that things are getting split up how we expect them to be.
+function threadme(f, A, args...; prepare = false, iterations = 1)
+    nthreads = Threads.nthreads()
+    @assert iszero(mod(length(A), nthreads))
+
+    step = div(length(A), nthreads)
+    Threads.@threads for i in 1:Threads.nthreads()
+        threadid = Threads.threadid()
+        start = step * (i-1) + 1
+        stop = step * i
+        x = view(A, start:stop)
+
+        # Run the inner loop
+        for j in 1:iterations
+            f(x, args...)
+        end
+    end
+    return nothing
+end

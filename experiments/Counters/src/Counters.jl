@@ -11,6 +11,7 @@ using Sockets
 using AutoTM
 using nGraph
 using PCM
+using PersistentArrays
 using SystemSnoop
 
 # External Packages
