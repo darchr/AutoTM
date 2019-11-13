@@ -2,6 +2,7 @@ module Counters
 
 # stdlib
 using Dates
+using Mmap
 using Random
 using Serialization
 using Sockets

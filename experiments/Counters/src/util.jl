@@ -68,3 +68,54 @@ const FEEDBACK = Dict(
     return next, next
 end
 
+#####
+##### mmap a hugepage.
+#####
+
+const MAP_HUGETLB    = Cint(0x40000)
+const MAP_HUGE_SHIFT = Cint(26)
+const MAP_HUGE_2MB   = Cint(21 << MAP_HUGE_SHIFT)
+const MAP_HUGE_1GB   = Cint(30 << MAP_HUGE_SHIFT)
+
+abstract type AbstractPageSize end
+struct Pagesize4K <: AbstractPageSize end
+struct Pagesize2M <: AbstractPageSize end
+struct Pagesize1G <: AbstractPageSize end
+
+extraflags(::Pagesize4K) = Cint(0)
+extraflags(::Pagesize2M) = MAP_HUGETLB | MAP_HUGE_2MB
+extraflags(::Pagesize1G) = MAP_HUGETLB | MAP_HUGE_1GB
+
+# This is heavily based on the Mmap stdlib
+function hugepage_mmap(::Type{T}, dim::Integer, pagesize::AbstractPageSize) where {T}
+    mmaplen = sizeof(T) * dim
+
+    # Build the PROT flags - we want to be able to read and write.
+    prot = Mmap.PROT_READ | Mmap.PROT_WRITE
+    flags = Mmap.MAP_PRIVATE | Mmap.MAP_ANONYMOUS
+    flags |= extraflags(pagesize)
+
+    fd = Base.INVALID_OS_HANDLE
+    offset = Cint(0)
+
+    # Fordward this call into the Julia C library.
+    ptr = ccall(
+        :jl_mmap,
+        Ptr{Cvoid},
+        (Ptr{Cvoid}, Csize_t, Cint, Cint, RawFD, Int64),
+        C_NULL,     # No address we really want.
+        mmaplen,
+        prot,
+        flags,
+        fd,
+        offset,
+    )
+
+    # Wrap this into an Array and attach a finalizer that will unmap the underlying pointer
+    # when the Array if GC'd
+    A = Base.unsafe_wrap(Array, convert(Ptr{T}, UInt(ptr)), dim)
+    finalizer(A) do x
+        systemerror("munmap", ccall(:munmap, Cint, (Ptr{Cvoid}, Int), ptr, mmaplen) != 0)
+    end
+    return A
+end
