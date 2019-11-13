@@ -1,150 +1,83 @@
-module CounterPlots
+# Build a workload, run it to get kernel times, and create a datastructure encoding the
+# graph for later plotting runs.
+function generate_timeline(backend, workload, cache, parsed_args)
+    f = get_workload(workload)
+    opt = get_optimizer(parsed_args["mode"])
 
-# replace underscores with spaces to LaTeX is happy
-replace_(x) = replace(String(x), "_" => " ")
-sumby(v, n) = [sum(@view(v[i:min(i+n-1, length(v))])) for i in 1:n:length(v)]
-
-include("Traffic.jl")
-using Serialization
-using Statistics
-using Dates
-using DataStructures
-using StructArrays
-
-using PGFPlotsX
-
-const DATADIR = joinpath(@__DIR__, "data")
-const FIGDIR = joinpath(@__DIR__, "figures")
-
-# Make the figure directory if needed.
-function __init__()
-    isdir(FIGDIR) || mkdir(FIGDIR)
-end
-
-ssum(x, s) = sum(sum.(x[s]))
-
-function make_plot(
-        data, names;
-        sumover = 1,
-        plotsum = false,
-        xlabel = "Time (s)",
-        ylabel = "",
-        ymax = nothing,
-        modifier = identity,
-        title = "",
-    )
-
-    selected_data = Dict(k => sum.(data[k]) for k in names)
-    if plotsum
-        selected_data[:total_sum] = map(sum, zip(values(selected_data)...))
-        push!(names, :total_sum)
+    # Build up a list of optional keyword arguments.
+    kw = []
+    if parsed_args["use_2lm_scratchpad"]
+        push!(kw, :use_scratchpad => true)
     end
-    _sums = Dict(k => sum(v) for (k,v) in selected_data)
-    display(_sums)
 
-    # Plot the results
-    plots = []
-    for name in names
-        v = selected_data[name]
-        coords = Coordinates(1:sumover:length(v), sumby(modifier(v), sumover))
-        push!(plots,
-            @pgf(PlotInc(coords)),
-            @pgf(LegendEntry(replace_(name)))
+    fex = AutoTM.Optimizer.factory(
+        backend,
+        f,
+        opt;
+        cache = cache,
+        kw...
+    ) |> maybeunwrap
+
+    # Run twice - we'll get timing data from the second iteration.
+    @time fex()
+
+    # Reset the performance counters so they aren't "contaminated" from the original run.
+    #
+    # The performance counters accumulate across runs, so if we don't do this, we will
+    # essentially be averaging the runtime from the second run with that of the first run.
+    nGraph.reset_counters(fex.ex)
+    @time fex()
+
+    # Create a `FunctionData` object from the nGraph function.
+    # Couple it with the performance metrics.
+    function_data = AutoTM.Profiler.FunctionData(fex.ex.ngraph_function, backend)
+    times = nGraph.get_performance(fex.ex)
+
+    println("Sum of Kernel Run Times: $(sum(values(times)))")
+
+    # Record metadata about each tensor that will be used for plot generation.
+    tensor_records = map(collect(AutoTM.Profiler.tensors(function_data))) do tensor
+        users = AutoTM.Profiler.users(tensor)
+        return Dict(
+             "name" => nGraph.name(tensor),
+             "users" => nGraph.name.(users),
+             "user_indices" => getproperty.(users, :index),
+             "sizeof" => sizeof(tensor),
+             "offset" => Int(AutoTM.Profiler.getoffset(tensor)),
         )
     end
 
-    empty!(PGFPlotsX.CUSTOM_PREAMBLE)
-    push!(PGFPlotsX.CUSTOM_PREAMBLE, "\\usepgfplotslibrary{colorbrewer}")
-    plt = TikzDocument()
-    push!(plt, "\\pgfplotsset{cycle list/Dark2}")
-
-    tikz = TikzPicture()
-
-    opts = []
-    isnothing(ymax) || push!(opts, "ymax = $ymax")
-
-    axs = @pgf Axis(
-        {
-            width = "12cm",
-            height = "10cm",
-            ultra_thick,
-            legend_style = {
-                at = Coordinate(0.02, 0.98),
-                anchor = "north west",
-            },
-            grid = "major",
-            xlabel = xlabel,
-            ylabel = ylabel,
-            title = title,
-            opts...
-        },
-        plots...
-    )
-    push!(tikz, axs)
-    push!(plt, tikz)
-
-    return plt
-end
-
-# The structure of this data is the WORST thing ever.
-#
-# Every serialized file has the following structure
-#
-# NamedTuple
-# :timestamp -> Vector{DateTime}
-# :counters -> Vector{Tuple}
-#     index 1 -> socket 0
-#         NamedTuple of Measurements
-#     index 2 -> socket 1
-#         NamedTuple of Measurements
-#
-# To make matters worse, we now have to deal with both Core and Uncore counters.
-#
-# Add a layer of indirection for handling the difference.
-peel(x::Tuple, i) = x[i]
-peel(x::NamedTuple, i) = x
-
-function counters_for_socket(x, i)
-    array_of_nt = peel.(x.counters, i)
-    # Convert to dictionary - make life easier on ourselves
-    return Dict(n => getproperty.(array_of_nt, n) for n in keys(first(array_of_nt)))
-end
-
-isscratchpad(x) = occursin("scratchpad", x)
-
-# Look in the `data` directory - deserialize all files that match `prefix`.
-# Furthermore - do a pairwise merging of the named tuple entries as long as the difference
-# in lengths between the everything is with `max_truncate`.
-function load(
-        prefix,
-        nt = NamedTuple();
-        # keyword arguments
-        f = x -> true,
-        max_truncate = 5,
-        socket = 2,
-        dir = DATADIR,
-        show = false,
-    )
-
-    # Get all files matching the prefix and possibly the suffix and deserialize
-    files = filter(x -> startswith(x, prefix) && f(x), readdir(dir))
-    for (k,v) in pairs(nt)
-        str = "_$(Traffic.modify(k, v))"
-        filter!(x -> occursin(str, x), files)
+    # Collect metadata on each node.
+    node_records = map(AutoTM.Profiler.nodes(function_data)) do node
+        outputs = nGraph.name.(AutoTM.Profiler.outputs(node))
+        inputs = nGraph.name.(AutoTM.Profiler.inputs(node))
+        time = get(times, nGraph.name(node), 0)
+        delete!(times, nGraph.name(node))
+        return Dict(
+            "name" => nGraph.name(node),
+            "inputs" => inputs,
+            "outputs" => outputs,
+            "time" => time,
+        )
     end
 
-    show && (@show files)
+    @assert isempty(times)
 
-    data = StructArray.(deserialize.(joinpath.(dir, files)))
+    # Combine together to the final record that will be saved.
+    record = Dict(
+        "tensors" => tensor_records,
+        "nodes" => node_records,
+    )
 
-    # Check if number of samples is about the same.
-    min, max = extrema(length, data)
-    if max - min > max_truncate
-        error("Sizes of data not within $max_truncate. Sizes are: $(length.(data))")
-    end
-    resize!.(data, min)
-    counters = counters_for_socket.(data, socket)
-    return reduce(merge, counters)
+    file = make_filename(
+        workload,
+        parsed_args["mode"],
+        "",
+        parsed_args["use_2lm_scratchpad"];
+        prefix = joinpath(@__DIR__, "serialized")
+    )
+    save(file, record)
+    return nothing
 end
 
 # Tool for inspecting and generating the heap allocation of an executable.
@@ -345,6 +278,4 @@ function barplot(records::OrderedDict{String, <:Dict}, ks;
         plots...
     )
     return axs
-end
-
 end

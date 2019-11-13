@@ -1,21 +1,6 @@
-module Traffic
-
-using SIMD
-using Random
-
-# Processing pipeline for name formatting
-modify(x) = x
-modify(s::Union{String,Symbol}) = replace(String(s), "-"=>"_")
-modify(::Val{T}) where {T} = T
-
-stripmod(f::Function) = last(split(string(f), "."))
-
-modify(x, y) = "$(modify(x))=$(modify(y))"
-
-function make_filename(f, nt::NamedTuple; dir = "array_data")
-    kvs = (modify(k, v) for (k, v) in pairs(nt))
-    return "$(dir)/$(stripmod(f))_$(join(kvs, "_")).jls"
-end
+#####
+##### Sequential Access Kernels
+#####
 
 function vector_sum(
         A::AbstractArray{T},
@@ -126,40 +111,9 @@ function vector_increment(
     return nothing
 end
 
-# Linear Feedback Shift Register
-struct LFSR{D}
-    feedback::Int
-end
-modify(::LFSR{D}) where {D} = D
-
-Base.length(::LFSR{D}) where {D} = (2^D) - 1
-
-# Implement LFSRs for some sizes.
-# Coefficients are taken from https://users.ece.cmu.edu/~koopman/lfsr/index.html
-# Becuase of our implementation, we have to chop off the MSB
-const FEEDBACK = Dict(
-     8 => 0x8E,
-    25 => 0x1000004,
-    26 => 0x2000023,
-    27 => 0x4000013,
-    28 => 0x8000004,
-    29 => 0x8000004,
-    30 => 0x20000029,
-    31 => 0x40000004,
-    32 => 0x80000057,
-    33 => 0x100000029,
-    34 => 0x200000073,
-)
-
-@inline Base.iterate(::LFSR) = (1, 1)
-@inline function Base.iterate(L::LFSR, previous)
-    feedback = isodd(previous) ? L.feedback : 0
-    next = xor(previous >> 1, feedback)
-
-    # If the new term is 1, we're back where we started, so abort
-    isone(next) && return nothing
-    return next, next
-end
+#####
+##### Random Access Kernels
+#####
 
 function hop_sum(A::AbstractArray{T}, ::Val{N}, lfsr) where {T,N}
     return _hop_sum(reinterpret(Vec{N,T}, A), lfsr)
@@ -203,4 +157,41 @@ end
     end
 end
 
-end # module
+#####
+##### Streamed copy from A to B
+#####
+
+function stream_copy!(A::AbstractArray{T}, B::AbstractArray{T}, valn::Val{N}) where {T, N}
+    unroll = 4
+
+    # Alignment and size checking
+    @assert iszero(mod(length(A), unroll * N))
+    @assert iszero(mod(Int(pointer(A)), sizeof(T) * N))
+    @assert iszero(mod(Int(pointer(B)), sizeof(T) * N))
+
+    # Forward to the one without bounds checking so we can checkout out the generated
+    # code more easily.
+    return unsafe_stream_copy!(A, B, valn)
+end
+
+function unsafe_stream_copy!(A::AbstractArray{T}, B::AbstractArray{T}, ::Val{N}) where {N,T}
+    # These are streaming stores after all.
+    unroll = 4
+    aligned = Val{true}()
+    nontemporal = Val{true}()
+
+    # Again, this pointer arithmetic thing seems to be necessary to get the best native code.
+    pa = pointer(A)
+    pb = pointer(B)
+    @inbounds for i in 0:(unroll*N):(length(A) - 1)
+        _v1 = vload(Vec{N,T}, pb + sizeof(T) * i,           aligned, nontemporal)
+        _v2 = vload(Vec{N,T}, pb + sizeof(T) * (i + N),     aligned, nontemporal)
+        _v3 = vload(Vec{N,T}, pb + sizeof(T) * (i + (2*N)), aligned, nontemporal)
+        _v4 = vload(Vec{N,T}, pb + sizeof(T) * (i + (3*N)), aligned, nontemporal)
+
+        vstore(_v1, pa + sizeof(T) * i,           aligned, nontemporal)
+        vstore(_v2, pa + sizeof(T) * (i + N),     aligned, nontemporal)
+        vstore(_v3, pa + sizeof(T) * (i + (2*N)), aligned, nontemporal)
+        vstore(_v4, pa + sizeof(T) * (i + (3*N)), aligned, nontemporal)
+    end
+end
