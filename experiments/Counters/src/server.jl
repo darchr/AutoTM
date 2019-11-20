@@ -14,6 +14,7 @@ function runserver()
         sampletime = 1
         filepath = "test.jls"
         measurements = NamedTuple()
+        params = NamedTuple()
 
         # Listen on the socket for instructions.
         while isopen(sock)
@@ -33,6 +34,11 @@ function runserver()
                 measurements = getmeasurements()
                 println("measurements = $measurements")
 
+            # Update `params` tuple
+            elseif cmd == "params"
+                params = getparams()
+                println("params = $params")
+
             # Update `sampletime`.
             elseif startswith(cmd, "sampletime")
                 sampletime = parse(Float64, last(split(cmd)))
@@ -41,7 +47,7 @@ function runserver()
             # start sampling.
             elseif cmd == "start"
                 GC.gc()
-                sample(sock, sampletime, filepath, measurements)
+                sample(sock, sampletime, filepath, params, measurements)
                 GC.gc()
 
             # who knows what happened.
@@ -63,8 +69,10 @@ function getmeasurements()
     return nt
 end
 
+getparams() = deserialize(PARAMPATH)::NamedTuple
+
 # Sampline routine.
-function sample(sock, sampletime, filepath, measurements)
+function sample(sock, sampletime, filepath, params, measurements)
     # Sample time regularly.
     sampler = SystemSnoop.SmartSample(Second(sampletime))
 
@@ -113,13 +121,17 @@ function sample(sock, sampletime, filepath, measurements)
     !ispath(dir) && mkpath(dir)
     if ispath(filepath)
         x = deserialize(filepath)
-
-        # Need to potentially turn a homogeneous array into a heterogenous array.
-        y = Vector{Any}(x)
-        push!(y, data)
-        serialize(filepath, y)
     else
-        serialize(filepath, [data])
+        x = DataTable()
     end
+
+    # Convert our data into to a Dict{Symbol, Any}
+    sa = StructArray(data)
+    dict = Dict(k => getproperty(sa, k) for k in getnames(eltype(sa)))
+
+    # Merge this data in with the rest
+    x = addentry!(x, params, dict)
+    serialize(filepath, x)
     return true
 end
+

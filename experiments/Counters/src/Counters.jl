@@ -9,6 +9,7 @@ using Sockets
 
 # AutoTM dependencies
 using AutoTM
+using MaxLFSR
 using nGraph
 using PCM
 using PersistentArrays
@@ -16,8 +17,10 @@ using SystemSnoop
 
 # External Packages
 using DataStructures
+using PrettyTables
 using SIMD
 using StructArrays
+using Tables
 using PGFPlotsX
 
 # We use a `NamedPipe` to communicate from the process that is actually running the
@@ -31,6 +34,8 @@ using PGFPlotsX
 # * filepath <payload> -- Set the serialization path to <payload>
 # * measurements -- Indicate that a collection of SystemSnoop measurements are ready
 #                   to be deserialized from `TRANSFERPATH` (defined below)
+# * params -- The parameters of this run to be recorded in the DataTable.
+#             Transfer methodology is the same as `measurements`.
 # * sampletime <time> -- Configure the time between samples.
 const SRCDIR = @__DIR__
 const PKGDIR = dirname(SRCDIR)
@@ -39,6 +44,7 @@ const TEMPDIR = joinpath(PKGDIR, "temp")
 
 const PIPEPATH = joinpath(TEMPDIR, "pipe")
 const TRANSFERPATH = joinpath(TEMPDIR, "transfer.jls")
+const PARAMPATH = joinpath(TEMPDIR, "params.jls")
 const FIGDIR = joinpath(PKGDIR, "figures")
 
 function __init__()
@@ -50,6 +56,9 @@ end
 
 # General Utility Functions
 include("util.jl")
+
+# Database for storing information.
+include("database.jl")
 
 # Bridge into PCM. Also contains code that allows PCM data structures to use the
 # SystemSnoop API

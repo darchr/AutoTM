@@ -14,9 +14,10 @@ function make_plot(
         ymax = nothing,
         modifier = identity,
         title = "",
+        reducer = sum,
     )
 
-    selected_data = Dict(k => sum.(data[k]) for k in names)
+    selected_data = Dict(k => reducer.(data[k]) for k in names)
     if plotsum
         selected_data[:total_sum] = map(sum, zip(values(selected_data)...))
         push!(names, :total_sum)
@@ -30,7 +31,12 @@ function make_plot(
         v = selected_data[name]
         coords = Coordinates(1:sumover:length(v), sumby(modifier(v), sumover))
         push!(plots,
-            @pgf(PlotInc(coords)),
+            @pgf(PlotInc(
+                {
+                    line_width="4pt",
+                },
+                coords
+            )),
             @pgf(LegendEntry(replace_(name)))
         )
     end
@@ -38,7 +44,7 @@ function make_plot(
     empty!(PGFPlotsX.CUSTOM_PREAMBLE)
     push!(PGFPlotsX.CUSTOM_PREAMBLE, "\\usepgfplotslibrary{colorbrewer}")
     plt = TikzDocument()
-    push!(plt, "\\pgfplotsset{cycle list/Dark2}")
+    push!(plt, "\\pgfplotsset{cycle list/Paired}")
 
     tikz = TikzPicture()
 
@@ -47,14 +53,15 @@ function make_plot(
 
     axs = @pgf Axis(
         {
-            width = "12cm",
-            height = "10cm",
+            width = "8cm",
+            height = "8cm",
             ultra_thick,
             legend_style = {
-                at = Coordinate(0.02, 0.98),
-                anchor = "north west",
+                at = Coordinate(0.02, 1.02),
+                anchor = "south west",
             },
-            grid = "major",
+            legend_columns = 2,
+            grid = "both",
             xlabel = xlabel,
             ylabel = ylabel,
             title = title,
@@ -115,6 +122,13 @@ function load(
         filter!(x -> occursin(str, x), files)
     end
 
+    if length(files) == 0
+        throw(error("No files found matching query!"))
+    elseif length(files) > 1
+        str = "Found $(length(files)) files!"
+        errmsg = join((str, files...), "\n")
+        throw(error(errmsg))
+    end
     @assert length(files) == 1
     data = StructArray.(Iterators.flatten(deserialize.(joinpath.(dir, files))))
 

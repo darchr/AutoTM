@@ -6,6 +6,25 @@ insight into the behavior of the 2LM cache.
 
 ## Setup
 
+For this to work correctly, you will have to disable the NMI watchdog counters on your system:
+```sh
+sudo sysctl kernel.nmi_watchdog=0
+```
+This is because the NMI watchdog consumes a hardware counter, which messes with PCM.
+
+### Allocating Hugepages
+
+For random access to large arrays, the underlying array needs to use 1G hugepages to avoid TLB misses.
+This is pretty simple to do:
+```sh
+sudo numactl --cpunodebind=1 --membind=1 hugeadm --obey-mempolicy --pool-pages-min=1G:64
+sudo hugeadm --create-mounts
+```
+You can replace `64` with however many GB of hugepages you need.
+
+--------------------------------------------------------------------------------------------
+# Old Documentation
+
 This experiment consists of two files that run in separate Julia processes.
 First, start up the performance counter server.
 In this directory, perform the following:

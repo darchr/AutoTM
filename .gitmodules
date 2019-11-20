@@ -14,3 +14,6 @@
 	path = deps/PersistentArrays
 	url = https://github.com/darchr/PersistentArrays.jl
 	branch = master
+[submodule "deps/MaxLFSR"]
+	path = deps/MaxLFSR
+	url = https://github.com/hildebrandmw/MaxLFSR.jl

@@ -12,61 +12,28 @@ function transfer(pipe, @nospecialize(x))
     return nothing
 end
 
+function paramtransfer(pipe, @nospecialize(x))
+    serialize(PARAMPATH, x)
+    println(pipe, "params")
+    return nothing
+end
+
 # Processing pipeline for name formatting
 modify(x) = x
 modify(s::Union{String,Symbol}) = replace(String(s), "-"=>"_")
 modify(::Val{T}) where {T} = T
+modify(x::LFSR) = ceil(Int, log2(length(x)))
 
 # If passed a function, get the name of the function
 # If passed a string, don't do anything
 stripmod(f::Function) = last(split(string(f), "."))
 srtipmod(f::String) = f
 
-# Create a nicely formatted
-modify(x, y) = "$(modify(x))=$(modify(y))"
-
-function make_filename(f, nt::NamedTuple; dir = "array_data")
-    kvs = (modify(k, v) for (k, v) in pairs(nt))
-    return "$(dir)/$(stripmod(f))_$(join(kvs, "_")).jls"
+function make_params(f, nt::NamedTuple{names}) where {names}
+    return NamedTuple{(:benchmark, names...)}(modify.((f, nt...)))
 end
 
-#####
-##### Linear Feedback Shift Register
-#####
-
-struct LFSR{D}
-    feedback::Int
-end
-modify(::LFSR{D}) where {D} = D
-
-Base.length(::LFSR{D}) where {D} = (2^D) - 1
-
-# Implement LFSRs for some sizes.
-# Coefficients are taken from https://users.ece.cmu.edu/~koopman/lfsr/index.html
-# Becuase of our implementation, we have to chop off the MSB
-const FEEDBACK = Dict(
-     8 => 0x8E,
-    25 => 0x1000004,
-    26 => 0x2000023,
-    27 => 0x4000013,
-    28 => 0x8000004,
-    29 => 0x8000004,
-    30 => 0x20000029,
-    31 => 0x40000004,
-    32 => 0x80000057,
-    33 => 0x100000029,
-    34 => 0x200000073,
-)
-
-@inline Base.iterate(::LFSR) = (1, 1)
-@inline function Base.iterate(L::LFSR, previous)
-    feedback = isodd(previous) ? L.feedback : 0
-    next = xor(previous >> 1, feedback)
-
-    # If the new term is 1, we're back where we started, so abort
-    isone(next) && return nothing
-    return next, next
-end
+getnames(::Type{<:NamedTuple{names}}) where {names} = names
 
 #####
 ##### mmap a hugepage.
@@ -77,17 +44,25 @@ const MAP_HUGE_SHIFT = Cint(26)
 const MAP_HUGE_2MB   = Cint(21 << MAP_HUGE_SHIFT)
 const MAP_HUGE_1GB   = Cint(30 << MAP_HUGE_SHIFT)
 
-abstract type AbstractPageSize end
-struct Pagesize4K <: AbstractPageSize end
-struct Pagesize2M <: AbstractPageSize end
-struct Pagesize1G <: AbstractPageSize end
+abstract type AbstractPagesize end
+struct Pagesize4K <: AbstractPagesize end
+struct Pagesize2M <: AbstractPagesize end
+struct Pagesize1G <: AbstractPagesize end
 
 extraflags(::Pagesize4K) = Cint(0)
 extraflags(::Pagesize2M) = MAP_HUGETLB | MAP_HUGE_2MB
 extraflags(::Pagesize1G) = MAP_HUGETLB | MAP_HUGE_1GB
 
+# Align length for `munmap` to a multiple of page size.
+pagesize(::Pagesize4K) = 4096
+pagesize(::Pagesize2M) = 2097152
+pagesize(::Pagesize1G) = 1073741824
+
+align(x, p::AbstractPagesize) = ceil(Int, x / pagesize(p)) * pagesize(p)
+align(x, ::Pagesize4K) = x
+
 # This is heavily based on the Mmap stdlib
-function hugepage_mmap(::Type{T}, dim::Integer, pagesize::AbstractPageSize) where {T}
+function hugepage_mmap(::Type{T}, dim::Integer, pagesize::AbstractPagesize) where {T}
     mmaplen = sizeof(T) * dim
 
     # Build the PROT flags - we want to be able to read and write.
@@ -115,7 +90,10 @@ function hugepage_mmap(::Type{T}, dim::Integer, pagesize::AbstractPageSize) wher
     # when the Array if GC'd
     A = Base.unsafe_wrap(Array, convert(Ptr{T}, UInt(ptr)), dim)
     finalizer(A) do x
-        systemerror("munmap", ccall(:munmap, Cint, (Ptr{Cvoid}, Int), ptr, mmaplen) != 0)
+        systemerror(
+            "munmap",
+            ccall(:munmap, Cint, (Ptr{Cvoid}, Csize_t), ptr, align(mmaplen, pagesize)) != 0
+        )
     end
     return A
 end
