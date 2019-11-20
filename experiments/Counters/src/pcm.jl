@@ -1,3 +1,65 @@
+struct SocketCounterRecord{N}
+    # One entry in the tuple for each imc channel.
+    #
+    # Each entry is a dictionary keyed by counter name.
+    imc_channels::NTuple{N, Dict{Symbol,Vector{Int64}}}
+
+    # Counter results aggregated across the socket.
+    aggregate_core::Dict{Symbol,Vector{Int64}}
+end
+
+# Walk all entries in the SocketCounter
+walkleaves(S::SocketCounterRecord) = Iterators.flatten((S.aggregate_core, S.imc_channels...))
+
+# For DataTable compatibility
+datamerge(a::T, b::T) where {T <: SocketCounterRecord} = merge!(a, b)
+
+function SocketCounterRecord{N}() where {N}
+    # Create the channels tuple
+    imc_channels = ntuple(i -> Dict{Symbol, Vector{Int}}(), N)
+    aggregate_core = Dict{Symbol, Vector{Int64}}()
+    return SocketCounterRecord{N}(
+        imc_channels,
+        aggregate_core,
+    )
+end
+
+function retrieve(S::SocketCounterRecord{N}, s::Symbol) where {N}
+    # Check if this corresponds to a Core counter.
+    # If so, just return the Core counter values.
+    val = get(S.aggregate_core, s, nothing)
+    isnothing(val) || return val
+
+    # Now, we have to gather up the Uncore counters.
+    @assert all(x -> haskey(x, s), S.imc_channels)
+
+    # Get all of the arrays for these counter values
+    arrays = getindex.(S.imc_channels, s)
+    len = minimum(length, arrays)
+
+    # Convert into an array of tuples.
+    return [ntuple(i -> arrays[i][j], N) for j in 1:len]
+end
+
+# Support for merging two SocketCounterRecords together.
+function Base.merge!(a::T, b::T) where {N, T <: SocketCounterRecord{N}}
+    # Recursively call merge on each of the channel counters
+    for (a, b) in zip(a.imc_channels, b.imc_channels)
+        merge!(a, b)
+    end
+
+    # merge the `aggregate_core counters
+    merge!(a.aggregate_core, b.aggregate_core)
+    return a
+end
+
+# Support the non-mutating version because it's easy.
+function Base.merge(a::T, b::T) where {N, T <: SocketCounterRecord{N}}
+    x = SocketCounterRecord{N}()
+    merge!(x, a)
+    merge!(x, b)
+    return x
+end
 
 # See `pcm/types.h - lines 746-747`
 perf_event(x) = (UInt(x) << 0)
@@ -42,6 +104,23 @@ function SystemSnoop.measure(C::CoreMonitorWrapper{names}) where {names}
 end
 
 SystemSnoop.clean(::CoreMonitorWrapper) = PCM.cleanup()
+
+# Post processing - pop up to a couple SocketCounterWrappers
+#
+# Sum up all counter data across all cores.
+function SystemSnoop.postprocess(
+        C::CoreMonitorWrapper{names},
+        data::Vector{<:NamedTuple}
+    ) where {names}
+
+    # Create an entry in a dictionary for each counter name
+    datadict = Dict(name => getproperty.(data, name) for name in names)
+
+    # NOTE: running this by default on a system with 6 memory channels.
+    record = SocketCounterRecord{6}()
+    merge!(record.aggregate_core, datadict)
+    return (socket_1 = record,)
+end
 
 #####
 ##### PCM Uncore
@@ -144,6 +223,34 @@ function SystemSnoop.measure(U::Uncore{NS, NIMC, NCH, names}, kw) where {NS, NIM
 end
 
 SystemSnoop.clean(U::Uncore) = PCM.cleanup()
+
+# Turn our crazy nested tuple thing into something actually somewhat usable.
+function SystemSnoop.postprocess(
+        U::Uncore{NS, NIMC, NCH, names},
+        data
+    ) where {NS, NIMC, NCH, names}
+
+    records = map(1:NS) do socket
+        # Create a SocketCounterRecord for this socket.
+        record = SocketCounterRecord{NCH}()
+        for channel in 1:NCH
+            # Get the data dictionary from this entry in the `imc_channels` field.
+            channel_counters = record.imc_channels[channel]
+
+            # Transform the socket data into the dicrionary form.
+            socket_data = data[socket]
+            for name in names
+                reformatted_counters = [getproperty(x[socket], name)[channel] for x in data]
+                channel_counters[name] = reformatted_counters
+            end
+        end
+        return record
+    end
+
+    # Create names for the socket counters
+    socket_names = ntuple(i -> Symbol("socket_$(i-1)"), NS)
+    return NamedTuple{socket_names}(Tuple(records))
+end
 
 const DEFAULT_NT = (
     dram_reads  = cas_count_rd(),

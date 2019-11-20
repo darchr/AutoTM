@@ -25,9 +25,7 @@ modify(::Val{T}) where {T} = T
 modify(x::LFSR) = ceil(Int, log2(length(x)))
 
 # If passed a function, get the name of the function
-# If passed a string, don't do anything
-stripmod(f::Function) = last(split(string(f), "."))
-srtipmod(f::String) = f
+modify(f::Function) = string(last(split(string(f), ".")))
 
 function make_params(f, nt::NamedTuple{names}) where {names}
     return NamedTuple{(:benchmark, names...)}(modify.((f, nt...)))

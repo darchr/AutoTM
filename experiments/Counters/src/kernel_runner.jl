@@ -33,9 +33,9 @@ function benchmark(A::AbstractArray, pipe, params::KernelParams)
     # Set up a bunch of nested loops to run through all the variations of tests we want
     # to execute.
     fns = [
-    #    vector_sum,
-    #    vector_write,
-    #    vector_increment
+        vector_sum,
+        vector_write,
+        vector_increment
     ]
 
     for (f, sz, _nt) in Iterators.product(fns, params.vector_sizes, params.temporals)

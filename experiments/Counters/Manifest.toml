@@ -392,7 +392,7 @@ uuid = "0bd6e0f1-f413-4adc-84f9-e31ccad13b82"
 version = "0.1.0"
 
 [[Pkg]]
-deps = ["Dates", "LibGit2", "Markdown", "Printf", "REPL", "Random", "SHA", "UUIDs"]
+deps = ["Dates", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "UUIDs"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 
 [[PooledArrays]]
@@ -531,7 +531,7 @@ deps = ["Libdl", "LinearAlgebra", "Serialization", "SparseArrays"]
 uuid = "4607b0f0-06f3-5cda-b6b1-a6196a1729e9"
 
 [[SystemSnoop]]
-deps = ["Dates", "RecipesBase", "Requires", "Serialization"]
+deps = ["Dates", "RecipesBase", "Requires", "Serialization", "StructArrays"]
 path = "../../deps/SystemSnoop"
 uuid = "c30797a9-91c2-5451-bcc7-95710ac2a28d"
 version = "0.1.0"

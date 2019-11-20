@@ -6,7 +6,8 @@ ssum(x, s) = sum(sum.(x[s]))
 
 # Main workhorse function.
 function make_plot(
-        data, names;
+        data::SocketCounterRecord,
+        names;
         sumover = 1,
         plotsum = false,
         xlabel = "Time (s)",
@@ -17,7 +18,8 @@ function make_plot(
         reducer = sum,
     )
 
-    selected_data = Dict(k => reducer.(data[k]) for k in names)
+    selected_data = Dict(k => reducer.(retrieve(data, k)) for k in names)
+
     if plotsum
         selected_data[:total_sum] = map(sum, zip(values(selected_data)...))
         push!(names, :total_sum)
@@ -75,70 +77,70 @@ function make_plot(
     return plt
 end
 
-# The structure of this data is the WORST thing ever.
-#
-# Every serialized file has the following structure
-#
-# NamedTuple
-# :timestamp -> Vector{DateTime}
-# :counters -> Vector{Tuple}
-#     index 1 -> socket 0
-#         NamedTuple of Measurements
-#     index 2 -> socket 1
-#         NamedTuple of Measurements
-#
-# To make matters worse, we now have to deal with both Core and Uncore counters.
-#
-# Add a layer of indirection for handling the difference.
-peel(x::Tuple, i) = x[i]
-peel(x::NamedTuple, i) = x
-
-function counters_for_socket(x, i)
-    array_of_nt = peel.(x.counters, i)
-    # Convert to dictionary - make life easier on ourselves
-    return Dict(n => getproperty.(array_of_nt, n) for n in keys(first(array_of_nt)))
-end
-
-isscratchpad(x) = occursin("scratchpad", x)
-
 # Look in the `data` directory - deserialize all files that match `prefix`.
 # Furthermore - do a pairwise merging of the named tuple entries as long as the difference
 # in lengths between the everything is with `max_truncate`.
 function load(
-        prefix,
-        nt = NamedTuple();
+        file,
+        params = NamedTuple();
         # keyword arguments
         f = x -> true,
         max_truncate = 5,
         socket = 2,
-        dir = DATADIR,
         show = false,
     )
 
-    # Get all files matching the prefix and possibly the suffix and deserialize
-    files = filter(x -> startswith(x, prefix) && f(x), readdir(dir))
-    for (k,v) in pairs(nt)
-        str = "_$(modify(k, v))"
-        filter!(x -> occursin(str, x), files)
+    database = deserialize(joinpath(DATADIR, file))
+
+    # Filter out entries that match the request.
+    filtered_database = database[params]
+
+    if length(filtered_database) == 0
+        println(database)
+        throw(error("No results matching your query!"))
+    elseif length(filtered_database) > 1
+        show_different(filtered_database)
+        throw(error("Found $(length(filtered_database)) entries"))
     end
 
-    if length(files) == 0
-        throw(error("No files found matching query!"))
-    elseif length(files) > 1
-        str = "Found $(length(files)) files!"
-        errmsg = join((str, files...), "\n")
-        throw(error(errmsg))
-    end
-    @assert length(files) == 1
-    data = StructArray.(Iterators.flatten(deserialize.(joinpath.(dir, files))))
+    # Get the actual payload from the data.
+    data = first(filtered_database[:data])[Symbol("socket_$(socket-1)")]::SocketCounterRecord
 
     # Check if number of samples is about the same.
-    min, max = extrema(length, data)
+    min, max = extrema(length, walkleaves(data))
     if max - min > max_truncate
         error("Sizes of data not within $max_truncate. Sizes are: $(length.(data))")
     end
-    resize!.(data, min)
-    counters = counters_for_socket.(data, socket)
-    return reduce(merge, counters)
+
+    # Funtion to resize all arrays
+    myresize! = (x, y) -> resize!(last(x), y)
+    myresize!.(walkleaves(data), min)
+    return data
+end
+
+# Helper function to highlight the difference between entries.
+function show_different(database::DataTable{names}) where {names}
+    # Find all names where all values are not equal
+    mismatch_names = Symbol[]
+    for name in names
+        x = database[name]
+        if !all(isequal(first(x)), x)
+            push!(mismatch_names, name)
+        end
+    end
+
+    # Now that we have the mismatched names, we can create a new datatable with just those
+    # entries.
+    params = Any[]
+    for row in Tables.rows(database)
+        param = NamedTuple{Tuple(mismatch_names)}(Tuple(getproperty.(Ref(row), mismatch_names)))
+        push!(params, param)
+    end
+
+    d = DataTable()
+    for p in params
+        addentry!(d, p)
+    end
+    println(d)
 end
 

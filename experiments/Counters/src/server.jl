@@ -98,7 +98,7 @@ function sample(sock, sampletime, filepath, params, measurements)
         end
 
         # Measuring loop.
-        data = SystemSnoop.snoop(measurements) do snooper
+        trace, data = SystemSnoop.snoop(measurements) do snooper
             while true
                 # Sleep until it's time to sample.
                 sleep(sampler)
@@ -108,7 +108,7 @@ function sample(sock, sampletime, filepath, params, measurements)
                 # out and make sure it's a `stop` command.
                 if canexit
                     println("Stopping Sampling")
-                    break
+                    return SystemSnoop.postprocess(snooper)
                 end
             end
         end
@@ -125,9 +125,12 @@ function sample(sock, sampletime, filepath, params, measurements)
         x = DataTable()
     end
 
-    # Convert our data into to a Dict{Symbol, Any}
-    sa = StructArray(data)
-    dict = Dict(k => getproperty(sa, k) for k in getnames(eltype(sa)))
+    # Only save the post-processed data for now.
+    dict = Dict(k => v for (k,v) in pairs(data))
+
+    # # Convert our data into to a Dict{Symbol, Any}
+    # sa = StructArray(data)
+    # dict = Dict(k => getproperty(sa, k) for k in getnames(eltype(sa)))
 
     # Merge this data in with the rest
     x = addentry!(x, params, dict)
