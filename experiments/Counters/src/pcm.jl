@@ -9,7 +9,9 @@ struct SocketCounterRecord{N}
 end
 
 # Walk all entries in the SocketCounter
-walkleaves(S::SocketCounterRecord) = Iterators.flatten((S.aggregate_core, S.imc_channels...))
+function walkleaves(S::SocketCounterRecord)
+    return Iterators.flatten(values.((S.aggregate_core, S.imc_channels...)))
+end
 
 # For DataTable compatibility
 datamerge(a::T, b::T) where {T <: SocketCounterRecord} = merge!(a, b)

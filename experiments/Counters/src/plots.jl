@@ -113,8 +113,7 @@ function load(
     end
 
     # Funtion to resize all arrays
-    myresize! = (x, y) -> resize!(last(x), y)
-    myresize!.(walkleaves(data), min)
+    resize!.(walkleaves(data), min)
     return data
 end
 
