@@ -122,7 +122,7 @@ function sample(sock, sampletime, filepath, params, measurements)
     if ispath(filepath)
         x = deserialize(filepath)
     else
-        x = DataTable()
+        x = database()
     end
 
     # Only save the post-processed data for now.

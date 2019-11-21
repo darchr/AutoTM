@@ -117,7 +117,15 @@ function run_2lm_exceeds_dram()
 end
 
 function pmm_direct_test()
-    @assert Threads.nthreads() == 24
+    # Get the number of threads.
+    # Pick the array size based on the number of workers.
+    nthreads = Threads.nthreads()
+
+    # Minimum total array size of 30 GB
+    min_total_size = 30E9 / sizeof(Float32)
+
+    # Calculate a nice power of 2 that will get us there
+    array_size = convert(Int, log2(nextpow(2, ceil(Int, min_total_size / nthreads))))
 
     measurements = [
         # Bandwidth statistics
@@ -137,7 +145,7 @@ function pmm_direct_test()
     ]
 
     params = KernelParams(
-        29,     # Back to small arrays :D
+        array_size,
         1.0,
         "1lm",
         5,
@@ -192,44 +200,6 @@ function dram_direct_test(;test = false)
     runkernels(
         params,
         sz -> hugepage_mmap(Float32, sz, Pagesize1G()),
-    )
-end
-
-function pmm_direct_test_4_threads()
-    @assert Threads.nthreads() == 4
-
-    measurements = [
-        # Bandwidth statistics
-        () -> uncore_events((
-            dram_reads  = cas_count_rd(),
-            dram_writes = cas_count_wr(),
-            pmm_reads   = pmm_read_cmd(),
-            pmm_writes  = pmm_write_cmd(),
-        )),
-        # Queue Depths
-        () -> uncore_events((
-            unc_clocks  = unc_clocks(),
-            pmm_rq      = pmm_rq(),
-            pmm_wq      = pmm_wq(),
-            dram_wq     = dram_wq(),
-        )),
-    ]
-
-    params = KernelParams(
-        31,
-        1.0,
-        "1lm",
-        2,
-        measurements,
-        [16],           # only use AvX 512
-        [true, false],  # Use nontemporal and standard loads and stores
-        "pmm",
-    )
-
-    # Run these experiments with a PersistentArray instead of a normal array.
-    runkernels(
-        params,
-        sz -> PersistentArray{Float32}(undef, sz),
     )
 end
 

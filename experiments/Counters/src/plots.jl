@@ -93,18 +93,18 @@ function load(
     database = deserialize(joinpath(DATADIR, file))
 
     # Filter out entries that match the request.
-    filtered_database = database[params]
+    filtered_database = database[findall(x -> ismatch(x, params), database)]
 
-    if length(filtered_database) == 0
+    if isnothing(filtered_database)
         println(database)
         throw(error("No results matching your query!"))
     elseif length(filtered_database) > 1
-        show_different(filtered_database)
+        showdb(filtered_database)
         throw(error("Found $(length(filtered_database)) entries"))
     end
 
     # Get the actual payload from the data.
-    data = first(filtered_database[:data])[Symbol("socket_$(socket-1)")]::SocketCounterRecord
+    data = first(filtered_database.data)[Symbol("socket_$(socket-1)")]::SocketCounterRecord
 
     # Check if number of samples is about the same.
     min, max = extrema(length, walkleaves(data))
@@ -116,31 +116,5 @@ function load(
     myresize! = (x, y) -> resize!(last(x), y)
     myresize!.(walkleaves(data), min)
     return data
-end
-
-# Helper function to highlight the difference between entries.
-function show_different(database::DataTable{names}) where {names}
-    # Find all names where all values are not equal
-    mismatch_names = Symbol[]
-    for name in names
-        x = database[name]
-        if !all(isequal(first(x)), x)
-            push!(mismatch_names, name)
-        end
-    end
-
-    # Now that we have the mismatched names, we can create a new datatable with just those
-    # entries.
-    params = Any[]
-    for row in Tables.rows(database)
-        param = NamedTuple{Tuple(mismatch_names)}(Tuple(getproperty.(Ref(row), mismatch_names)))
-        push!(params, param)
-    end
-
-    d = DataTable()
-    for p in params
-        addentry!(d, p)
-    end
-    println(d)
 end
 
