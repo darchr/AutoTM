@@ -16,6 +16,7 @@ function make_plot(
         modifier = identity,
         title = "",
         reducer = sum,
+        linewidth = "4pt",
     )
 
     selected_data = Dict(k => reducer.(retrieve(data, k)) for k in names)
@@ -35,7 +36,7 @@ function make_plot(
         push!(plots,
             @pgf(PlotInc(
                 {
-                    line_width="4pt",
+                    line_width = linewidth,
                 },
                 coords
             )),
@@ -173,12 +174,9 @@ function load(
     )
 
     database = deserialize(joinpath(DATADIR, file))
-    showdb(database)
 
     # Filter out entries that match the request.
     filtered_database = database[findall(x -> ismatch(x, params), database)]
-    showdb(filtered_database)
-
     if isnothing(filtered_database)
         println(database)
         throw(error("No results matching your query!"))
@@ -193,7 +191,7 @@ function load(
     # Check if number of samples is about the same.
     min, max = extrema(length, walkleaves(data))
     if max - min > max_truncate
-        error("Sizes of data not within $max_truncate. Sizes are: $(length.(data))")
+        error("Sizes of data not within $max_truncate. Sizes are between $min and $max.")
     end
 
     # Funtion to resize all arrays
