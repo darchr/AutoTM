@@ -106,7 +106,7 @@ function run_2lm_exceeds_dram()
         2,      # 2 iterations - these take quite a while.
         measurements,
         [16],       # Only use AvX 512
-        [true],    # Use standard loads/stores
+        [false],
         "mmap-1gb"
     )
 
