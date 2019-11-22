@@ -1,5 +1,7 @@
 # AutoTM
 
+Documentation coming soon™!
+
 ## Saving and Loading Experimental Data
 
 All of the code for AutoTM, including code for experiments, is version controlled in various Git repositories.
