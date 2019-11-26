@@ -122,18 +122,14 @@ function sample(sock, sampletime, filepath, params, measurements)
     if ispath(filepath)
         x = deserialize(filepath)
     else
-        x = database()
+        x = Slab()
     end
 
     # Only save the post-processed data for now.
     dict = Dict(k => v for (k,v) in pairs(data))
 
-    # # Convert our data into to a Dict{Symbol, Any}
-    # sa = StructArray(data)
-    # dict = Dict(k => getproperty(sa, k) for k in getnames(eltype(sa)))
-
     # Merge this data in with the rest
-    x = addentry!(x, params, dict)
+    x[params] = dict
     serialize(filepath, x)
     return true
 end

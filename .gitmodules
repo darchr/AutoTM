@@ -17,3 +17,6 @@
 [submodule "deps/MaxLFSR"]
 	path = deps/MaxLFSR
 	url = https://github.com/hildebrandmw/MaxLFSR.jl
+[submodule "deps/Slabs"]
+	path = deps/Slabs
+	url = https://github.com/hildebrandmw/Slabs.jl

@@ -14,7 +14,7 @@ function walkleaves(S::SocketCounterRecord)
 end
 
 # For DataTable compatibility
-datamerge(a::T, b::T) where {T <: SocketCounterRecord} = merge!(a, b)
+Slabs.datamerge(a::T, b::T) where {T <: SocketCounterRecord} = merge!(a, b)
 
 function SocketCounterRecord{N}() where {N}
     # Create the channels tuple

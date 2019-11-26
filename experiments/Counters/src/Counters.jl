@@ -13,6 +13,7 @@ using MaxLFSR
 using nGraph
 using PCM
 using PersistentArrays
+using Slabs
 using SystemSnoop
 
 # External Packages
@@ -56,9 +57,6 @@ end
 
 # General Utility Functions
 include("util.jl")
-
-# Database for storing information.
-include("database.jl")
 
 # Bridge into PCM. Also contains code that allows PCM data structures to use the
 # SystemSnoop API

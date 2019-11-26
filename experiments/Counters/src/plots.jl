@@ -78,6 +78,10 @@ function make_plot(
     return plt
 end
 
+labelize(x) = x
+labelize(x::String) = replace_(x)
+labelize(x::Tuple) = join(labelize.(x), " ")
+
 # Now bar plots!
 function bar_plot(
         # The actual data for each item of interest.
@@ -92,6 +96,8 @@ function bar_plot(
         aggregator = sum,
         reducer = sum,
         ymax = nothing,
+        width = "8cm",
+        height = "8cm",
     )
 
     @assert length(data) == length(labels)
@@ -101,7 +107,9 @@ function bar_plot(
         # For each counters, aggregate the counters according to `aggregate`,
         # then reduce the resulting vector to a single number using `reducer`.
         return map(counters) do counter
-            reduced_data = reducer(aggregator.(retrieve(d, counter)))
+            aggregated = aggregator.(retrieve(d, counter))
+            @show sum(aggregated)
+            reduced_data = reducer(aggregated)
             return counter => reduced_data
         end |> Dict
     end
@@ -110,7 +118,7 @@ function bar_plot(
     plots = []
     for counter in counters
         y_coords = getindex.(selected_data, counter)
-        x_coords = labels
+        x_coords = labelize.(labels)
 
         coords = Coordinates(x_coords, y_coords)
         push!(plots,
@@ -131,8 +139,8 @@ function bar_plot(
 
     axs = @pgf Axis(
         {
-            width = "8cm",
-            height = "8cm",
+            width = width,
+            height = height,
             ultra_thick,
             ybar,
             ymin = 0,
@@ -144,9 +152,13 @@ function bar_plot(
             grid = "both",
 
             # Set up symbolic coordinates.
-            symbolic_x_coords = labels,
+            symbolic_x_coords = labelize.(labels),
             nodes_near_coords_align={vertical},
             xtick = "data",
+            xticklabel_style = {
+                rotate = -15,
+            },
+            #enlarge_x_limits = 0.3,
 
             # Setup labels
             xlabel = xlabel,
@@ -176,17 +188,17 @@ function load(
     database = deserialize(joinpath(DATADIR, file))
 
     # Filter out entries that match the request.
-    filtered_database = database[findall(x -> ismatch(x, params), database)]
-    if isnothing(filtered_database)
+    filtered_database = database[params]
+    if length(filtered_database) == 0
         println(database)
         throw(error("No results matching your query!"))
     elseif length(filtered_database) > 1
-        showdb(filtered_database)
+        println(filtered_database)
         throw(error("Found $(length(filtered_database)) entries"))
     end
 
     # Get the actual payload from the data.
-    data = first(filtered_database.data)[Symbol("socket_$(socket-1)")]::SocketCounterRecord
+    data = first(filtered_database).data[Symbol("socket_$(socket-1)")]::SocketCounterRecord
 
     # Check if number of samples is about the same.
     min, max = extrema(length, walkleaves(data))
@@ -201,28 +213,44 @@ end
 
 function load_multiple(
         file,
-        params,
+        params::Union{<:NamedTuple, <:Vector},
         # The field that should be different across the selected matches
-        should_vary::Symbol;
+        should_vary;
         socket = 2,
     )
 
-    database = deserialize(joinpath(DATADIR, file))
+    db = deserialize(joinpath(DATADIR, file))
 
     # Filter out entries that match the request.
-    filtered_database = database[findall(x -> ismatch(x, params), database)]
+    #
+    # If `params` is a NamedTuple, find all matches.
+    # If `params` is a vector of named tuples, find a match for each.
+    if isa(params, NamedTuple)
+        filtered_database = db[params]
+    elseif isa(params, Vector)
+        filtered_database = Slab()
+        for p in params
+            @show p
+            x = db[p]
+            if length(x) > 1
+                println(x)
+                error()
+            end
+            filtered_database[p] = x[1].data
+        end
+    end
 
     if isnothing(filtered_database)
-        showdb(database)
+        println(db)
         throw(error("No results matching your query!"))
     end
 
     # Ensure that the `should_vary` field of the filtered_database does infact have
     # all unique entries.
-    @assert allunique(getproperty(filtered_database, should_vary))
+    @assert allunique(filtered_database[should_vary])
 
     # Now, extract the socket records and return!
     key = Symbol("socket_$(socket - 1)")
     data = [entry.data[key]::SocketCounterRecord for entry in filtered_database]
-    return data, getproperty(filtered_database, should_vary)
+    return data, filtered_database[should_vary]
 end
