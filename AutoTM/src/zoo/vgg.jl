@@ -2,21 +2,16 @@ abstract type AbstractVgg end
 struct Vgg19  <: AbstractVgg end
 struct Vgg416 <: AbstractVgg end
 
-struct Shard
-    layers
-end
-(S::Shard)(x) = cat(map(f -> f(x), S.layers)...; dims = 3)
-
-_c1(i = 16) = Conv((3,3), 3 => i, relu; pad = 1)
-_c2(i = 16) = Chain(
-    Conv((3,3), 64 => i, relu; pad = 1),
-    MaxPool((2,2)),
-)
+# _Conv(k, ch, σ; kw...) = Conv(
+#     Flux.param(Flux.glorot_uniform(k..., ch...)),
+#     Flux.param(ones(Float32, ch[2])),
+#     σ;
+#     kw...
+# )
+# _ones(x) = Flux.param(ones(Float32, x))
 
 vgg19() = Chain(
         # First Layer
-        #Shard([_c1() for _ in 1:4]),
-        #Shard([_c2() for _ in 1:4]),
         Conv((3,3), 3 => 64, relu; pad = 1),
         Conv((3,3), 64 => 64, relu; pad = 1),
         MaxPool((2,2)),
@@ -46,9 +41,9 @@ vgg19() = Chain(
         x -> reshape(x, :, size(x, 4)),
         Dense(25088, 4096, relu),
         Dense(4096, 4096, relu),
-        Dense(4096, 1000),
-        # Add a small positive value to avoid NaNs
-        x -> log.(max.(x, Float32(1e-9))),
+        Dense(4096, 1000, relu),
+        # Truncate to a small positive value to avoid NaNs
+        x -> log.(max.(x, Float32(1e-7))),
         softmax
     )
 
@@ -100,7 +95,7 @@ function vgg416()
         Dense(4096, 4096, relu),
         Dense(4096, 1000),
         # Add a small positive value to avoid NaNs
-        x -> log.(max.(x, Float32(1e-7))),
+        x -> max.(x, Float32(1e-7)),
         softmax
     )
 
@@ -126,7 +121,7 @@ _forward(::Vgg19) = vgg19()
 _forward(::Vgg416) = vgg416()
 
 function vgg_training(vgg::T, batchsize) where {T <: AbstractVgg}
-    X = rand(Float32, 224, 224, 3, batchsize)
+    X = randn(Float32, 224, 224, 3, batchsize)
     Y = zeros(Float32, 1000, batchsize)
     for col in 1:batchsize
         Y[rand(1:1000), col] = one(eltype(Y))
@@ -137,10 +132,10 @@ function vgg_training(vgg::T, batchsize) where {T <: AbstractVgg}
 
     # Compute the backward pass.
     f(x, y) = Flux.crossentropy(forward(x), y)
-    return Actualizer(f, X, Y; optimizer = nGraph.SGD(Float32(0.005)))
+    return Actualizer(f, X, Y; optimizer = nGraph.SGD(Float32(0.05)))
 end
 
-function random_labels!(y)
+function random_labels!(y::AbstractArray{T,2}) where {T}
     y .= zero(eltype(y))
     for j in 1:size(y, 2)
         y[rand(1:size(y, 1)), j] = one(eltype(y))

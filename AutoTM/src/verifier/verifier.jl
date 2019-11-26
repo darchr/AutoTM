@@ -15,17 +15,11 @@ export verify
 # To do that, we use an auxiliary function that accepts the constructor function for a model
 # as well as any passes to be performed on the model and checks that the base computation
 # matches the modifed computation.
-#
-# NOTES:
-# - Need to set the random seed before each call to the model constructor to ensure that
-#   the model enters a known and consistent state before any modification.
-#
-# - Need to provide utility functions to extract the before/after parameters of each
-#   function for comparison.
 
+# Get all of the input and output parameters of an executable.
 io_arrays(fex) = vflatten(nGraph.splat_inputs(fex), nGraph.splat_outputs(fex))
 
-function verify(backend, f, opt, cache;
+function verify(backend::nGraph.Backend{nGraph.CPU}, f, opt, cache;
         seed = 8086,
         inner_iterations = 5,
         outer_iterations = 2,
@@ -84,15 +78,77 @@ function verify(backend, f, opt, cache;
                 end
 
                 # Check equality
-                if parent(a) != parent(b)
+                #
+                # Use `isapprox` because of non-determinism in GPU computations.
+                if !isapprox(parent(a), parent(b))
                     equal_error(i, j, seed, outer_seed)
-                    return false
+                    return (a, b)
                 end
             end
         end
     end
     return true
 end
+
+# For the GPU, nondeterminism means we have to trace over a period of time.
+function verify(backend::nGraph.Backend{nGraph.GPU}, f, opt, cache;
+        seed = 8086,
+        inner_iterations = 100,
+        outer_iterations = 2,
+    )
+
+    success = true
+    for i in 1:outer_iterations
+        println("Working on iteration $i")
+
+        # Create a new seed for each outer iteration.
+        outer_seed = rand(UInt64) 
+
+        # Wrapped the callable in a seed generator
+        seeded_f = @closure begin
+            Random.seed!(outer_seed)
+            return f()
+        end
+
+        # GC fence everything to ensure we don't run out of memory.
+        GC.gc()
+        baseline = run_baseline(backend, seeded_f, opt, cache, inner_iterations)
+        GC.gc()
+        optimized = run_optimized(backend, seeded_f, opt, cache, inner_iterations)
+        GC.gc()
+        return baseline, optimized
+    end
+end
+
+# Inner functions for GC purposes.
+function run_baseline(backend, f, opt, cache, inner_iterations)
+    fex = actualize(backend, f)
+    vals = []
+    @showprogress 1 for j in 1:inner_iterations
+        push!(vals, collect(parent(fex())))
+    end
+    return vals
+end
+
+function run_optimized(backend, f, opt, cache, inner_iterations)
+    #fex = actualize(backend, f)
+    fex = first(Optimizer.factory(
+        backend, 
+        f, 
+        opt; 
+        cache = cache, 
+    ))
+
+    vals = []
+    @showprogress 1 for j in 1:inner_iterations
+        push!(vals, collect(parent(fex())))
+    end
+    return vals
+end
+
+#####
+##### Error Generation.
+#####
 
 nan_error(x...) = generic_error("NaN Values", x...)
 subnormal_error(x...) = generic_error("Subnormal Values", x...)

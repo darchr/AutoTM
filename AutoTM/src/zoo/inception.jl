@@ -209,7 +209,7 @@ function inception_v4(x)
     # dropout
 
     push!(layers, x -> reshape(x, :, size(x,4)), false)
-    push!(layers, Dense(1536, 1000), false)
+    push!(layers, Dense(1536, 1000, relu), false)
     push!(layers, x -> log.(max.(x, Float32(1e-7))), false),
     push!(layers, softmax, false)
 
@@ -231,13 +231,13 @@ function inception_v4_training(batchsize; kw...)
     x = rand(Float32, 299, 299, 3, batchsize)
     X = (x .- mean(x)) ./ std(x)
 
-    Y = rand(Float32, 1000, batchsize)
+    Y = zeros(Float32, 1000, batchsize)
     random_labels!(Y)
 
     forward = inception_v4(x)
     f(x, y) = Flux.crossentropy(forward(x), y)
 
-    return Actualizer(f, X, Y; optimizer = nGraph.SGD(Float32(0.001)))
+    return Actualizer(f, X, Y; optimizer = nGraph.SGD(Float32(0.05)))
 end
 
 #####

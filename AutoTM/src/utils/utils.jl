@@ -88,8 +88,8 @@ Keyword Arguments
 
 * `nkw`: Extra keyword or keyword overrides to pass to `nGraph.compile`.
 """
-function actualize(backend, f; env = (), nkw...)
-    A = f()::Actualizer
+actualize(backend, f; env = (), nkw...) = actualize(backend, f(); env = env, nkw...)
+function actualize(backend, A::Actualizer; env = (), nkw...)
     return withenv(env...) do
         nGraph.compile(backend, A.f, A.args...; A.kw..., nkw...)
     end
