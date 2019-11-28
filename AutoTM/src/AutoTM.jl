@@ -32,12 +32,23 @@ using nGraph
 using nGraph: TensorDescriptor, NodeDescriptor, inputs, outputs, description
 
 using JuMP
-using Gurobi
+using JSON
 using LightGraphs
 using IterTools
 using ProgressMeter
 using DataStructures
 using Flux
+
+# Determine if we're using Gurobi as the ILP solver.
+settings = JSON.parsefile(joinpath(dirname(@__DIR__), "deps", "build.json"))
+if settings["GUROBI"] == true
+    using Gurobi
+    getoptimizer() = with_optimizer(Gurobi.Optimizer; TimeLimit = 3600, MIPGap = 0.01)
+else
+    using Cbc
+    getoptimizer() = with_optimizer(Cbc.Optimizer; seconds = 3600, ratioGap = 1.01)
+end
+
 
 # docstringing it up!
 using DocStringExtensions

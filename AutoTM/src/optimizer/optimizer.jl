@@ -2,12 +2,13 @@ module Optimizer
 
 using ..Utils
 using ..Profiler
+import ..AutoTM
 import nGraph
+
 
 using ProgressMeter
 using LightGraphs
 using JuMP
-using Gurobi
 using DocStringExtensions
 
 # Scheduling Heuristic
