@@ -3,12 +3,10 @@
 #####
 
 test_vgg() = AutoTM.Experiments.test_vgg()
-
 conventional_inception()    = AutoTM.Experiments.conventional_inception()
 conventional_resnet()       = AutoTM.Experiments.conventional_resnet()
 conventional_vgg()          = AutoTM.Experiments.conventional_vgg()
 conventional_densenet()     = AutoTM.Experiments.conventional_densenet()
-#conventional_transformer()  = AutoTM.Experiments.conventional_transformer()
 
 common_ratios() = [
     1 // 0,
@@ -83,12 +81,12 @@ end
 ##### PMM Speedup Plot
 #####
 
-function plot_speedup(
-        models = conventional_functions();
+function plot_speedup(;
+        models = conventional_functions(),
+        ratios = common_ratios(),
         formulations = ("numa", "static", "synchronous"),
         cache = AutoTM.Experiments.CPU_CACHE
     )
-    ratios = common_ratios();
 
     # Get rid of the all PMEM and all DRAM case
     deleteat!(ratios, findfirst(isequal(0 // 1), ratios))
@@ -129,15 +127,15 @@ end
 ##### Cost Plot
 #####
 
-function plot_costs()
-    pairs = [
-        conventional_vgg() => "synchronous",
-        conventional_densenet() => "synchronous",
-        conventional_resnet() => "synchronous",
-        conventional_inception() => "synchronous",
-    ]
-
-    ratios = common_ratios();
+function plot_costs(;
+        pairs = [
+            conventional_vgg() => "synchronous",
+            conventional_densenet() => "synchronous",
+            conventional_resnet() => "synchronous",
+            conventional_inception() => "synchronous",
+        ],
+        ratios = common_ratios(),
+    )
 
     # Get rid of the all PMEM and all DRAM case
     deleteat!(ratios, findfirst(isequal(0 // 1), ratios))
@@ -146,9 +144,9 @@ function plot_costs()
     pgf_cost(pairs, ratios, cache; cost_ratio = 2.1)
 end
 
-#####
-##### Case Study - Inception
-#####
+############################################################################################
+# Case Study - Inception
+############################################################################################
 
 function case_study_ratios()
     # Start out with the ratios of the whole memory we want to devote to DRAM
@@ -224,9 +222,9 @@ function inception_case_study_plots()
     )
 end
 
-#####
-##### Large Models
-#####
+############################################################################################
+# Large Models
+############################################################################################
 
 large_inception() = AutoTM.Experiments.large_inception()
 large_resnet() = AutoTM.Experiments.large_resnet()
@@ -308,9 +306,9 @@ function plot_large()
     pgf_large_performance(fns, cache, cache_2lm; formulations = formulations)
 end
 
-#####
-##### GPU Benchmarks
-#####
+############################################################################################
+# GPU Benchmarks
+############################################################################################
 
 const GPU_MAX_MEMORY = 11_000_000_000
 

@@ -826,7 +826,7 @@ function pgf_error_plot(fns, ratios, caches;
                 for ratio in ratios
                     ind = findabsmin(x -> compare_ratio(getratio(x), ratio), data.runs)
                     actual_runtime = data.runs[ind][:actual_runtime]
-                    predicted_runtime = data.runs[ind][:predicted_runtime] / 1E6
+                    predicted_runtime = data.runs[ind][:predicted_runtime] / 1E2
                     push!(x, ratio_string(ratio))
                     push!(y, 100 * (predicted_runtime - actual_runtime) / actual_runtime)
                 end
