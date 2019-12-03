@@ -39,10 +39,10 @@ end
 ######
 
 _ignore(t::String) = any(startswith.(Ref(t), ("Parameter", "Result", "Constant")))
-_ignore(t::TensorDescriptor) = _ignore(nGraph.name(t))
+_ignore(t::XTensor) = _ignore(nGraph.name(t))
 
 mutable struct NumaTensorMeta
-    tensor::TensorDescriptor
+    tensor::XTensor
     location::TensorLocation
     offset::Int64
 end
@@ -63,7 +63,7 @@ function numa(backend::nGraph.Backend, f::nGraph.NFunction, opt::Numa, cache)
         # belong in DRAM.
         #
         # Otherwise, they belong in PMEM. Simple as that.
-        for tensor in filter(!_ignore, data.newlist[data.node_to_index[node]])
+        for tensor in filter(!_ignore, node.newlist)
             offset = allocate(pool, sizeof(tensor))
             if !isnothing(offset)
                 meta[tensor].location = DRAM
@@ -73,7 +73,7 @@ function numa(backend::nGraph.Backend, f::nGraph.NFunction, opt::Numa, cache)
             end
         end
 
-        for tensor in filter(!_ignore, data.freelist[data.node_to_index[node]])
+        for tensor in filter(!_ignore, node.freelist)
             # Free this tensor from DRAM
             if meta[tensor].location == DRAM
                 free(pool, meta[tensor].offset)
@@ -87,10 +87,29 @@ function numa(backend::nGraph.Backend, f::nGraph.NFunction, opt::Numa, cache)
 end
 
 function run_numa(backend, f, opt::Numa; cache = nothing, kw...)
-    fex = actualize(backend, f)
-    data, schedule, limit = numa(backend, fex.ex.ngraph_function, opt, cache)
-    fex, tesor_map = configure!(fex, data, schedule)
-    return fex, limit
+    limit_ref = Ref{Any}()
+    function cb(f::nGraph.NFunction)
+        data, schedule, limit = numa(backend, f, opt, cache)
+        configure!(f, schedule, data)
+        limit_ref[] = limit
+
+        return nothing
+    end
+
+    callbacks = CallbackChain()
+    callback!(callbacks, cb)
+
+    A = f()::Actualizer
+    fex = nGraph.compile(
+        backend,
+        A.f,
+        A.args...;
+        callback = callbacks,
+        emit_timing = true,
+        A.kw...
+    )
+
+    return fex, limit_ref[]
 end
 
 #####

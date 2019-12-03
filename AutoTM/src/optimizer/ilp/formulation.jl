@@ -201,10 +201,6 @@ function add_tensors!(frame::Frame)
     data = frame.profile_data
     modeltype = frame.modeltype
 
-    # for tensor in fixed_tensors(frame)
-    #     println("Found a fixed tensor: ", nGraph.name(tensor))
-    # end
-
     # Create variables for the tensors and add flow constraints to the to the tensor graphs
     @variable(frame.model,
         tensor_graphs[
@@ -336,39 +332,6 @@ function add_tensors!(frame::Frame)
     end
     return nothing
 end
-
-# Assert that if a tensor group has more than one element in it, then
-# 1. Each tensor in the group is either a parameter or result.
-# 2. The shortcut edges from source to sink are identical.
-# function add_tensor_groups!(frame)
-#     data = frame.profile_data
-#     model = frame.model
-#     tensor_graphs = model[:tensor_graphs]
-#
-#     group_to_tensors = Dict{Int, Vector{XTensor{XNode}}}()
-#     for tensor in tensors(data)
-#         v = get!(group_to_tensors, tensor.group, XTensor{XNode}[])
-#         push!(v, tensor)
-#     end
-#
-#     for tensors_in_group in values(group_to_tensors)
-#         @assert all(isarg, tensors_in_group)
-#         for a in tensors_in_group
-#             for b in tensors_in_group
-#                 a == b && continue
-#                 println("Grouping Tensors: ", nGraph.name(unx(a)), " and ", nGraph.name(unx(b)))
-#
-#                 # Find their shortcut edges
-#                 ea = find_shortcut_edge(a)
-#                 eb = find_shortcut_edge(b)
-#
-#                 @constraint(model, tensor_graphs[a, ea] == tensor_graphs[b, eb])
-#             end
-#         end
-#     end
-#     println("I'm finished :D")
-#     return nothing
-# end
 
 # Filter on edge type, sort by parent index to get the edges in execution order.
 _find_edges(g, edgetype) = sort(

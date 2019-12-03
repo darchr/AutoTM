@@ -122,13 +122,22 @@ isfixed(x::XTensor) = !isnothing(x.fixed_at)
 fixed_location(x::XTensor) = something(x.fixed_at)
 
 function XTensor(tensor::TensorDescriptor, ::Type{T}; fixed_at = nothing) where {T}
+    r = role(tensor)
+
+    # For now - treat constants and inputs as zero size
+    if in(r, (Constant, Arg))
+        sz = 0
+    else
+        sz = sizeof(tensor)
+    end
+
     # Add in tensors that may also live in PMEM
     xtensor = XTensor(
         tensor,
         XNode[],
-        role(tensor),
+        r,
         fixed_at,
-        sizeof(tensor),
+        sz,
         TensorLocation[],
         false,
         TENSOR_GROUP_NUM[],
@@ -389,6 +398,8 @@ function FunctionData(fn::nGraph.NFunction, ::Type{T}) where {T}
 
     return FunctionData{T}(tensors, nodes)
 end
+
+iosize(F::FunctionData) = sum(sizeof, Iterators.filter(x -> isarg(x) || isconstant(x), F.tensors))
 
 function _get(a::Set{XTensor{XNode}}, t::TensorDescriptor)
     for i in a

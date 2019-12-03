@@ -72,10 +72,11 @@ function execute(fns, opts, caches, backend, suffix = nothing; kw...)
     # Wrap functions, optimizers, and caches so we can safely iterate over everything
     for f in wrap(fns), cache in wrap(caches), opt in wrap(opts)
         savefile = canonical_path(f, opt, cache, backend, suffix)
-        Profiler.compare(f, opt, backend;
+        AutoTM.Profiler.compare(
+            f,
+            opt,
+            backend;
             statspath = savefile,
-
-            # Set the cache as well as how many times to replicate kernels for profiling
             cache = getcache(backend, cache),
             kw...
         )

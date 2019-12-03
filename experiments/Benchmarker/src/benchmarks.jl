@@ -8,7 +8,7 @@ conventional_inception()    = AutoTM.Experiments.conventional_inception()
 conventional_resnet()       = AutoTM.Experiments.conventional_resnet()
 conventional_vgg()          = AutoTM.Experiments.conventional_vgg()
 conventional_densenet()     = AutoTM.Experiments.conventional_densenet()
-conventional_transformer()  = AutoTM.Experiments.conventional_transformer()
+#conventional_transformer()  = AutoTM.Experiments.conventional_transformer()
 
 common_ratios() = [
     1 // 0,
@@ -25,64 +25,46 @@ conventional_functions() = [
     conventional_densenet(),
 ]
 
-function single_kernel_profile(fns; recache = false)
-    backend = nGraph.Backend("CPU")
-    for f in wrap(fns)
-        fex = actualize(backend, f)
-        cache = Profiler.CPUKernelCache(SINGLE_KERNEL_PATH)
-        Profiler.profile(fex;
-            recache = recache,
-            cache = cache,
-            kernel_tiling = TILING_FACTOR[SINGLE_KERNEL_PATH]
-        )
-    end
-end
-
-function multi_kernel_profile(; recache = false)
-    fns = (
-        #conventional_vgg(),
-        #test_vgg(),
-        conventional_inception(),
-        conventional_resnet(),
-        conventional_vgg(),
-    )
-
-    backend = nGraph.Backend("CPU")
-    for f in fns
-        fex = actualize(backend, f)
-        cache = Profiler.CPUKernelCache(MULTIPLE_KERNEL_PATH)
-        Profiler.profile(fex; cache = cache, kernel_tiling = TILING_FACTOR[MULTIPLE_KERNEL_PATH])
-    end
-end
-
 #####
 ##### Standard Routine
 #####
 
-function run_conventional()
-    fns = (
-        #test_vgg(),
-        conventional_inception(),
-        conventional_resnet(),
-        conventional_vgg(),
-        conventional_densenet(),
-    )
+"""
+    run_conventional(fn, optimizers, ratios)
 
+Run experiment for a conventional workload.
+
+Argument Description
+--------------------
+
+* `fn`: The network to run. Options are
+    - `test_vgg()`
+    - `conventional_vgg()`
+    - `conventional_inception()`
+    - `conventional_resnet()`
+    - `conventional_densenet()`
+
+* `optimizers`: Iteratable of optimizers to use. Options:
+    - `AutoTM.Optimizers.Static`
+    - `AutoTM.Optimizers.Synchronous`
+    - `AutoTM.Optimizers.Numa`
+
+* `ratios`: Iterable of ratios (`Rational{Int}`) of ratios of PMM and DRAM to use.
+    Defaults to `conventional_ratios() = [1 // 0, 8 // 1, 4 // 1, 1 // 1, 0 // 1]`
+
+Results will be saved to `Benchmarker/data/cpu`.
+"""
+function run_conventional(fn, optimizers, ratios = common_ratios())
     ratios = common_ratios()
 
-    optimizers = Iterators.flatten((
-        #[Optimizer.Static(r) for r in ratios],
-        #[Optimizer.Synchronous(r) for r in ratios],
-        [Optimizer.Numa(r) for r in ratios],
-    ))
-
-    caches = [
-        SINGLE_KERNEL_PATH,
-        #MULTIPLE_KERNEL_PATH
-    ]
-
-    execute(fns, optimizers, caches, nGraph.Backend("CPU"))
+    opt = Iterators.flatten(o.(ratios) for o in optimizers)
+    cache = AutoTM.Experiments.CPU_CACHE
+    execute(fn, opt, cache, nGraph.Backend("CPU"))
 end
+
+############################################################################################
+# Plots
+############################################################################################
 
 #####
 ##### Front Plot
@@ -124,19 +106,15 @@ end
 ##### Error Plot
 #####
 
-function plot_conventional_error()
-    fns = (
-        conventional_inception(),
-        conventional_resnet(),
-        conventional_vgg(),
-        conventional_densenet(),
-    )
-
-    ratios = common_ratios()
-
-    formulations = (
-        "static",
-        "synchronous",
+function plot_conventional_error(;
+        fns = [
+            conventional_inception(),
+            conventional_resnet(),
+            conventional_vgg(),
+            conventional_densenet()
+        ],
+        ratios = common_ratios(),
+        formulations = ("static", "synchronous")
     )
 
     caches = [
@@ -201,7 +179,7 @@ function inception_case_study()
 
     optimizers = Iterators.flatten((
         [Optimizer.Static(r) for r in ratios],
-        #[Optimizer.Synchronous(r) for r in ratios],
+        [Optimizer.Synchronous(r) for r in ratios],
     ))
 
     cache = SINGLE_KERNEL_PATH
@@ -255,13 +233,33 @@ large_resnet() = AutoTM.Experiments.large_resnet()
 large_densenet() = AutoTM.Experiments.large_densenet()
 large_vgg() = AutoTM.Experiments.large_vgg()
 
+"""
+    kernel_profile(fns; recache = false)
+
+Perform kernel profiling for each function in `fns`.
+Possible values for argument `fns` are:
+- `test_vgg()`
+- `conventional_vgg()`
+- `conventional_inception()`
+- `conventional_resnet()`
+- `conventional_densenet()`
+- `large_vgg()`
+- `large_inception()`
+- `large_resnet()`
+- `large_densenet()`
+
+If `recache = true`, delete previously profiled kernels for each function.
+"""
 function kernel_profile(fns; recache = false)
     backend = nGraph.Backend("CPU")
-    dummy_opt = Optimizer.Static(1 // 0)
+    dummy_opt = AutoTM.Optimizer.Static(0)
 
     for f in wrap(fns)
-        Optimizer.factory(backend, f, dummy_opt;
-            cache = AutoTM.Profiler.CPUKernelCache(CPU_CACHE),
+        AutoTM.Optimizer.factory(
+            backend,
+            f,
+            dummy_opt;
+            cache = AutoTM.Profiler.CPUKernelCache(AutoTM.Experiments.CPU_CACHE),
             just_profile = true,
             recache = recache
         )

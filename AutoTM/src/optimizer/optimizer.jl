@@ -30,6 +30,11 @@ include("optimizer_2lm.jl")
 _move_filter() = x -> ismove(x) && !ismoveasync(x)
 _async_filter() = x -> ismoveasync(x)
 
+# Hacky extensions for X-types
+Utils.ismove(x::Profiler.XNode) = ismove(nGraph.Node(unx(x)))
+Utils.ismoveasync(x::Profiler.XNode) = ismoveasync(nGraph.Node(unx(x)))
+nGraph.is_persistent(x::Profiler.XTensor) = nGraph.is_persistent(unx(x))
+
 function _move_filter(dest)
     is_persistent_result = (dest == PMEM) ? true : false
 

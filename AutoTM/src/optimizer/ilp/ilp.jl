@@ -9,7 +9,7 @@ struct Static <: ILPType end
 struct Synchronous <: ILPType end
 struct Asynchronous <: ILPType end
 
-struct ILPOptimizer{T, U <: ILPType} <: AbstractOptimizer{T} 
+struct ILPOptimizer{T, U <: ILPType} <: AbstractOptimizer{T}
     # PMM to DRAM ratio - depending on `T`
     x::T
 end
@@ -20,7 +20,11 @@ _getratio(I::ILPOptimizer) = I.x
 function (O::ILPOptimizer{Rational{Int64}})(data, backend::nGraph.Backend)
     bounds = Profiler.allocation_bounds(data)
 
-    x = fill(round(Int, (bounds.upper_bound / (getratio(O) + 1)) / 1E6), size(nodes(data)))
+    top = max(
+        bounds.upper_bound / (getratio(O) + 1) / 1E6,
+    )
+
+    x = fill(round(Int, top), size(nodes(data)))
     println("Trying to use $(maximum(x)) MB of memory")
     return ILPHolder(O, x, backend; defrag = !iszero(_numerator(O)))
 end
@@ -49,7 +53,7 @@ struct TensorMeta
     reference_map::Dict{XNode, XNode}
 
     # Flag to indicate that this is a fixed tensor - can decrease variable generation.
-    isfixed::Bool 
+    isfixed::Bool
 end
 
 #####
@@ -110,7 +114,7 @@ mutable struct Frame{T <: ILPHolder}
     local_args::Vector{XTensor{XNode}}
 end
 
-Frame(modeltype, model::JuMP.Model, profile_data::FunctionData) = 
+Frame(modeltype, model::JuMP.Model, profile_data::FunctionData) =
     Frame(modeltype, model, profile_data, XTensor{XNode}[])
 
 limit(F::Frame) = limit(F.modeltype)

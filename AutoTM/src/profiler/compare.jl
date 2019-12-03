@@ -5,7 +5,7 @@ function gettime(fex::nGraph.FluxExecutable; timeout = Second(5), min_calls = 3)
     times = 1
     while (now() < start + timeout) || (times <= min_calls)
         @info "Running Function"
-        runtime = @elapsed(read(fex()))
+        runtime = @elapsed(nGraph.fetch(fex()))
         @info "Done Running Function"
         mintime = min(mintime, runtime)
         times += 1
@@ -23,7 +23,7 @@ function get_baseline_allocation(backend, f)
     function set(f::nGraph.NFunction)
         data = profile(f, backend)
         for node in nodes(data)
-            if nGraph.Lib.can_select_algo(nGraph.getpointer(node))
+            if nGraph.Lib.can_select_algo(nGraph.getpointer(unx(node)))
                 # Find the minimum runtime of the algorithms
                 runtimes = get_times(gettime(data, node))
                 _, ind = findmin(runtimes)
@@ -40,7 +40,7 @@ function get_baseline_allocation(backend, f)
 
     function ret(f::nGraph.NFunction)
         allocation_ref[] = nGraph.get_temporary_pool_size(f)
-        io_ref[] = sum(sizeof, input_tensors(f)) + sum(sizeof, output_tensors(f)) 
+        io_ref[] = sum(sizeof, input_tensors(f)) + sum(sizeof, output_tensors(f))
         throw(CompilerExit())
     end
 
@@ -130,7 +130,7 @@ end
 
 # To initialize the GPU stuff, we turn on the Managed Memory flag and compile the function
 function initialize!(stats, func, backend::nGraph.Backend{nGraph.GPU})
-    fex = withenv("NGRAPH_GPU_CUDA_MALLOC_MANAGED" => true) do 
+    fex = withenv("NGRAPH_GPU_CUDA_MALLOC_MANAGED" => true) do
         actualize(backend, func)
     end
 

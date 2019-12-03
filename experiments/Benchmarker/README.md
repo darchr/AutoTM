@@ -15,6 +15,14 @@ julia> using Benchmarker
 ```
 successfully.
 
+# PMM System Experiments.
+
+## Profile Kernels
+
+```julia
+julia> using Benchmarker, AutoTM
+```
+
 ## Plots
 
 Below is a summary of the plotting functions.

@@ -22,7 +22,7 @@ function insert_move_node!(
 
     # First, mutate the nGraph graph underneath all the Julia types
     #
-    # Dispatch to the correct implementation depending on whether or not this is an 
+    # Dispatch to the correct implementation depending on whether or not this is an
     # asynchronous move of just a normal synchronous move.
     if !isasync(action)
         move_node = Utils.insert_move_node!(
@@ -63,7 +63,7 @@ function insert_move_node!(
     push!(xnode.outputs, xtensor)
 
     for (input, consumer) in zip(consumer_inputs, consumers)
-        consumer.inputs[input] = xtensor  
+        consumer.inputs[input] = xtensor
     end
 
     return xnode
@@ -73,7 +73,7 @@ end
 ##### inner configure!
 #####
 
-function configure!(fn::nGraph.NFunction, schedule, data)
+function configure!(fn::nGraph.NFunction, schedule, data::Profiler.FunctionData)
     # Get the locations of the tensors currently in the graph
     #
     # NOTE: Leave this as TensorDescriptor since it will ultimately be used for ngraphj
@@ -136,7 +136,7 @@ function configure!(fn::nGraph.NFunction, schedule, data)
     # This will be returned to notify upstream processes which inputs should be in PMM
     arg_descriptors = Set(t.tensor for t in tensors(data) if isarg(t))
     remote_args = Set{TensorDescriptor}()
-    
+
     # Iterate over each node and each output tensor for each node. Each output tensor should
     # have an assigned location
     for node in fn, output in outputs(NodeDescriptor(node))

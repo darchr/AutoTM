@@ -38,7 +38,7 @@ conventional_resnet()       = Resnet200(512)
 conventional_vgg()          = Vgg19(2048)
 conventional_densenet()     = DenseNet(512)
 conventional_transformer()  = Transformer(512, 150)
-test_vgg() = Vgg19(32)
+test_vgg()                  = Vgg19(16)
 
 # Large Models
 large_inception() = Inception_v4(6144)      # 659 GB

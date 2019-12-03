@@ -5,9 +5,9 @@ factory(args...; kw...) = _factory(args...; kw...)
 
 # Ratio optimizers go through a refinement step
 function factory(
-        backend::nGraph.Backend{nGraph.CPU}, 
-        func, 
-        opt::AbstractOptimizer{Rational{Int64}}; 
+        backend::nGraph.Backend{nGraph.CPU},
+        func,
+        opt::AbstractOptimizer{Rational{Int64}};
         kw...
     )
     return ratiosearch(_factory, backend, func, opt; kw...)
@@ -71,7 +71,7 @@ function _factory(
 
         # update the frame with the local args
         empty!(frame.local_args)
-        for tensor in tensors(data) 
+        for tensor in tensors(data)
             islocalarg(frame, tensor) && push!(frame.local_args, tensor)
         end
 
@@ -91,8 +91,8 @@ function _factory(
         if exceeds_limit(f, frame_ref[].modeltype, frame_ref[].local_args)
             # This is pretty ugly - sorry about that.
             modeltype = update(
-                frame_ref[].modeltype, 
-                frame_ref[].local_args, 
+                frame_ref[].modeltype,
+                frame_ref[].local_args,
                 profile(f, backend; profile_kw...)
             )
             limits_ref[] = modeltype.dram_limits
@@ -101,7 +101,7 @@ function _factory(
         end
     end
 
-    # Create a function to let the nGraph.jl compiler know if a function parameter or 
+    # Create a function to let the nGraph.jl compiler know if a function parameter or
     # output is supposed to be remote
     isremote(x::nGraph.Node) = in(first(outputs(x)), remote_args_ref[])
 
@@ -138,7 +138,7 @@ function _factory(
         end
     end
 
-    # Following compilation, set up the appropriate arguments to live in persistent memory 
+    # Following compilation, set up the appropriate arguments to live in persistent memory
     # or not.
     remote_args = remote_args_ref[]
 
@@ -157,7 +157,7 @@ end
 """
     ratiosearch(f, backend, func, opt; search_ratio = true, refinements = 7, kw...)
 
-`f` - 
+`f` -
 `func` - An AutoTM compatible function constructor
 
 Further keywords get passed to the inner call to `f`.

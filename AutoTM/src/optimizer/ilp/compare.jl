@@ -29,7 +29,7 @@ function Profiler._compare!(
         :predicted_runtime => predict(frame),
         :dram_limit => maxlimit(frame.modeltype),
         :tensor_size_map => Dict(nGraph.name(t) => sizeof(t) for t in tensors(data)),
-        :config_map => Dict(nGraph.name(n) => getconfig(nGraph.Node(n)) for n in nodes(data)),
+        :config_map => Dict(nGraph.name(n) => getconfig(nGraph.Node(unx(n))) for n in nodes(data)),
         :ratio => getratio(opt),
     )
 
@@ -94,7 +94,7 @@ function Profiler._compare!(
     if !skip_run
         nt_new = Dict(
             :actual_runtime => gettime(fex),
-            :kernel_times => read_timing_data(fex.ex.ngraph_function)
+            :kernel_times => nGraph.get_performance(fex.ex)
         )
         nt = merge(nt, nt_new)
     end
