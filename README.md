@@ -4,95 +4,25 @@
 |:---:|:---:|:---:|
 [![][docs-latest-img]][docs-latest-url] | [![DOI](https://zenodo.org/badge/200740567.svg)](https://zenodo.org/badge/latestdoi/200740567) | [![][travis-img]][travis-url] |
 
-## Sub Projects
+Memory capacity is a key bottleneck for training large scale neural networks. 
+Intel® OptaneTM DC PMM (persistent memory modules) which are available as NVDIMMs are a disruptive technology that promises significantly higher read bandwidth than traditional SSDs and significantly high capacity and at a lower cost per bit than traditional DRAM. 
+In this work we will show how to take advantage of this new memory technology to reduce the overall system cost by minimizing the amount of DRAM required without compromising performance significantly. 
+Specifically, we take advantage of the static nature of the underlying computational graphs in deep neural network applications to develop a profile guided optimization based on Integer Linear Programming (ILP) called AutoTM to optimally assign and move live tensors to either DRAM or NVDIMMs. 
+Our approach can replace 80% of a system’s DRAM with PMM while only losing a geometric mean 27.7% performance. 
+This is a significant improvement over first-touch NUMA, which loses 71.9% of performance. 
+The proposed ILP based synchronous scheduling technique also provides 2x performance over 2LM (existing hardware approach where DRAM is used as a cache) for large batch size ResNet 200.
 
-| Repo | Link   | Description |
-|------|--------|-------------|
-| ngraph (fork)       | https://github.com/darchr/ngraph/tree/mh/pmem  | Customized fork of ngraph source code |
-| nGraph.jl           | https://github.com/hildebrandmw/nGraph.jl      | Julia frontend for nGraph             |
-| PersistentArrays.jl | https://github.com/darchr/PersistentArrays.jl  | NVDIMM backed arrays |
-| SystemSnoop.jl      | https://github.com/hildebrandmw/SystemSnoop.jl | Base System monitoring API |
-| PCM.jl              | https://github.com/hildebrandmw/PCM.jl         | Wrapper for Intel [pcm](https://github.com/opcm/pcm)  |
-| pcm                 | https://github.com/hildebrandmw/pcm | Customized fork of Intel pcm |
-| MaxLFSR.jl          | https://github.com/hildebrandmw/MaxLFSR.jl | Maximum length Linear Feedback Shift Registers |
+## Installation
 
-# Requirements
+For installation instructions, visit the documentation: http://arch.cs.ucdavis.edu/AutoTM/dev/installation/
 
-Ubuntu 18.04 LTS
+## Building Documentation
 
-Install required packages with
+To build documentation, run the following commands from the top directory
 ```sh
-build-essential \
-cmake \
-clang-6.0 \
-clang-format-6.0 \
-git \
-curl \
-zlib1g \
-zlib1g-dev \
-libtinfo-dev \
-unzip \
-autoconf \
-automake \
-libtool
+julia --project=docs/ -e 'using Pkg; Pkg.instantiate(); using Documenter; include("docs/make.jl")'
 ```
-
-# Installation
-
-Clone the repository with
-```sh
-git clone --recursive https://github.com/darchr/AutoTM
-export AUTOTM_HOME=$(pwd)/AutoTM
-```
-
-### Setup
-
-A simple setup needs to be performed to indicate how the project will be used.
-To enter the setup, run
-```sh
-cd $AUTOTM_HOME
-julia --color=yes setup.jl
-```
-The following selections can be made - choose which are appropriate for your system:
-* Use NVDIMMs in 1LM (requires a Cascade Lake system with Optane DC NVDIMMs)
-* Use of a GPU (requires CUDA 10.1 or CUDA 10.2)
-* Use Gurobi as the ILP solver (requires a Gurobi license (see below)).
-    If Gurobi is not selected, the open source Cbc solver will be used.
-    Please note that the original experiments were run with Gurobi.
-    
-### Building
-
-Launch Julia from the AutoTM project
-```sh
-cd $AUTOTM_HOME/AutoTM
-julia --project
-```
-
-In the Julia REPL, press `]` to switch to package (pkg) mode and run following commands:
-```julia
-julia> ]
-(AutoTM) pkg> instantiate
-(AutoTM) pkg> build -v
-```
-This will trigger the build process for our custom version of ngraph.
-Passing the `-v` command to `build` will helpfully display any errors that occur during the build process.
-
-### Using the Gurobi ILP solver (optional)
-
-The results in the AutoTM paper use [Gurobi](https://www.gurobi.com) for the ILP solver.
-However, Gurobi requires a license to run.
-Free trial and academic licenses are available from the Gurobi website: https://www.gurobi.com
-
-If using Gurobi, please obtain a license and install the software according the instructions on the website.
-
-Then, when building the project, make sure to run
-```julia
-julia> ENV["GUROBI_HOME"] = "path/to/gurobi"
-```
-in Julia before executing the build step above.
-
-**NOTE**: Using the Gurobi ILP solver is optional.
-If not selected during the setup step, an open-source solver [Cbc](https://projects.coin-or.org/Cbc) will be used.
+Documentation will be available at `docs/build/`.
 
 ## Running Experiments
 

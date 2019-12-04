@@ -235,6 +235,10 @@ Benchmarker.plot_large()
 ## GPU
 
 ### Preparation
+
+To allow data to be moved to the host system, CUDA needs pinned memory.
+Make sure to run `ulimit -l` to allow unlimited pinned host memory before running.
+
 Navigate to the Benchmarker directory
 ```sh
 cd $AUTOTM_HOME/experiments/Benchmarker
