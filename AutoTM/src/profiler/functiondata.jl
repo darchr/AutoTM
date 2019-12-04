@@ -121,12 +121,23 @@ end
 isfixed(x::XTensor) = !isnothing(x.fixed_at)
 fixed_location(x::XTensor) = something(x.fixed_at)
 
-function XTensor(tensor::TensorDescriptor, ::Type{T}; fixed_at = nothing) where {T}
+function XTensor(tensor::TensorDescriptor, ::Type{T}; fixed_at = nothing) where {T <: nGraph.AbstractBackendType}
     r = role(tensor)
 
-    # For now - treat constants and inputs as zero size
-    if in(r, (Constant, Arg))
-        sz = 0
+    # For now - treat constants and inputs as zero size for the PMM case.
+    #
+    # CPU models are big enough that the extra memory consumption doesn't throw off 
+    # calculations that much.
+    #
+    # Accounting for IO size is done in later analysis steps.
+    #
+    # On the other hand, it's necessary to include this for the GPU code.
+    if isa(T, nGraph.CPU)
+        if in(r, (Constant, Arg))
+            sz = 0
+        else
+            sz = sizeof(tensor)
+        end
     else
         sz = sizeof(tensor)
     end

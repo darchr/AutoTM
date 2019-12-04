@@ -8,6 +8,11 @@ conventional_resnet()       = AutoTM.Experiments.conventional_resnet()
 conventional_vgg()          = AutoTM.Experiments.conventional_vgg()
 conventional_densenet()     = AutoTM.Experiments.conventional_densenet()
 
+"""
+    common_ratios()
+
+Ratios of PMM to DRAM used for the AutoTM paper.
+"""
 common_ratios() = [
     1 // 0,
     8 // 1,
@@ -43,9 +48,9 @@ Argument Description
     - `conventional_densenet()`
 
 * `optimizers`: Iteratable of optimizers to use. Options:
-    - `AutoTM.Optimizers.Static`
-    - `AutoTM.Optimizers.Synchronous`
-    - `AutoTM.Optimizers.Numa`
+    - `AutoTM.Optimizer.Static`
+    - `AutoTM.Optimizer.Synchronous`
+    - `AutoTM.Optimizer.Numa`
 
 * `ratios`: Iterable of ratios (`Rational{Int}`) of ratios of PMM and DRAM to use.
     Defaults to `conventional_ratios() = [1 // 0, 8 // 1, 4 // 1, 1 // 1, 0 // 1]`
@@ -105,7 +110,7 @@ end
 #####
 
 function plot_conventional_error(;
-        fns = [
+        models = [
             conventional_inception(),
             conventional_resnet(),
             conventional_vgg(),
@@ -120,7 +125,7 @@ function plot_conventional_error(;
     ]
 
     suffix = nothing
-    return pgf_error_plot(fns, ratios, caches; formulations = formulations, suffix = suffix)
+    return pgf_error_plot(models, ratios, caches; formulations = formulations, suffix = suffix)
 end
 
 #####
@@ -148,6 +153,11 @@ end
 # Case Study - Inception
 ############################################################################################
 
+"""
+    case_study_ratios()
+
+Return PMM to DRAM ratios used for the Inception case study.
+"""
 function case_study_ratios()
     # Start out with the ratios of the whole memory we want to devote to DRAM
     ratios = [ 1 // i for i in 1:10 ]
@@ -170,6 +180,11 @@ function case_study_ratios()
     return pmem_to_dram_ratios
 end
 
+"""
+    inception_case_study()
+
+Run the `conventional_inception()` workload for a large number of different PMM to DRAM ratios.
+"""
 function inception_case_study()
     f = conventional_inception()
 
@@ -188,6 +203,11 @@ function inception_case_study()
     execute(f, optimizers, cache, nGraph.Backend("CPU"), suffix; search_ratio = false)
 end
 
+"""
+    inception_case_study_plots()
+
+Generate Figure 10a, 10b, and 10c of the paper.
+"""
 function inception_case_study_plots()
     f = conventional_inception()
     cache = AutoTM.Experiments.CPU_CACHE
@@ -317,9 +337,14 @@ const GPU_MAX_MEMORY = Ref(11_000_000_000)
 #
 # Probably worth double-checking
 #const GPU_MEMORY_OVERHEAD = 561_000_000
-const GPU_MEMORY_OVERHEAD = Ref(1_040_000_000)
+const GPU_MEMORY_OVERHEAD = Ref(2_000_000_000)
 gpu_adjusted_memory() = GPU_MAX_MEMORY[] - GPU_MEMORY_OVERHEAD[]
 
+"""
+    gpu_fns()
+
+Collection of benchmarks used to test the GPU version of AutoTM.
+"""
 gpu_fns() = (
     AutoTM.Experiments.Inception_v4(64),
     AutoTM.Experiments.Inception_v4(128),
@@ -381,9 +406,18 @@ function gpu_go(i::Integer)
     cache = AutoTM.Experiments.GPU_CACHE
     backend = nGraph.Backend("GPU")
 
-    execute(fn, optimizers, cache, backend; adjust_io = true)
+    # IO size now is taken care of automatically
+    execute(fn, optimizers, cache, backend; adjust_io = false)
     return nothing
 end
+
+"""
+    gpu_benchmarks(itr = 1:length(gpu_fns()))
+
+Run all GPU benchmarks.
+A subset can be run by passing a custom iterator.
+"""
+gpu_benchmarks(itr = 1:length(gpu_fns())) = gpu_go.(itr)
 
 """
     plot_gpu_performance(fns = gpu_fns(), formulations = ("synchronous", "asynchronous"))
