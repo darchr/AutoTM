@@ -108,10 +108,12 @@ function compare(
         kw...
     )
 
-    @info """
-    Predicted Run Time: $(last(stats.runs)[:predicted_runtime])
-    Actual Run Time: $(last(stats.runs)[:actual_runtime])
-    """
+    if !isempty(stats.runs)
+        @info """
+        Predicted Run Time: $(last(stats.runs)[:predicted_runtime])
+        Actual Run Time: $(last(stats.runs)[:actual_runtime])
+        """
+    end
 
     sort!(stats.runs; rev = true, by = x -> x[:dram_limit])
     isnothing(statspath) || serialize(statspath, stats)

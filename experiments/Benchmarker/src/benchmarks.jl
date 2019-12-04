@@ -333,19 +333,23 @@ gpu_fns() = (
     AutoTM.Experiments.Vgg19(128),
 )
 
-function gpu_profile(; recache = false, allow_alloc_fail = false)
+function gpu_profile(; recache = false)
     fns = gpu_fns()
     opt = AutoTM.Optimizer.Synchronous(GPU_ADJUSTED_MEMORY)
-    cache = GPU_CACHE
+    cache = AutoTM.Experiments.GPU_CACHE
     backend = nGraph.Backend("GPU")
 
     for f in fns
         @show name(f)
         try
-            execute(f, opt, cache, backend;
+            execute(
+                f, 
+                opt, 
+                cache, 
+                backend;
+                # kwargs
                 just_profile = true,
                 skip_base_check = true,
-                allow_alloc_fail = allow_alloc_fail,
                 recache = recache,
             )
         catch e
@@ -363,10 +367,18 @@ function gpu_go(i)
         Optimizer.Asynchronous(limit),
     )
 
-    cache = GPU_CACHE
+    cache = AutoTM.Experiments.GPU_CACHE
     backend = nGraph.Backend("GPU")
 
     execute(fns, optimizers, cache, backend; adjust_io = true)
+end
+
+function gpu_benchmarks()
+    for i in 1:length(gpu_fns())
+        GC.gc()
+        gpu_go(i)
+        GC.gc()
+    end
 end
 
 plot_gpu_performance() = pgf_gpu_performance_plot(gpu_fns(), AutoTM.Experiments.GPU_CACHE)

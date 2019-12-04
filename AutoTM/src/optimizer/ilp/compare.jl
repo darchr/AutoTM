@@ -116,7 +116,13 @@ function Profiler._compare!(
         kw...
     )
 
-    fex, frame = factory(backend, f, opt; cache = cache, kw...)
+    # If we're just profiling, `factory` can return `nothing`.
+    #
+    # Hwere, we just perform a quick check for that actions so we don't get an indexing error.
+    x = factory(backend, f, opt; cache = cache, kw...)
+    isnothing(x) && return nothing
+
+    fex, frame = x
     GC.gc()
     data = profile(fex; cache = cache)
 
