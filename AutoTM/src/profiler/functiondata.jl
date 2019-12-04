@@ -132,12 +132,18 @@ function XTensor(tensor::TensorDescriptor, ::Type{T}; fixed_at = nothing) where 
     # Accounting for IO size is done in later analysis steps.
     #
     # On the other hand, it's necessary to include this for the GPU code.
-    if isa(T, nGraph.CPU)
-        if in(r, (Constant, Arg))
-            sz = 0
-        else
-            sz = sizeof(tensor)
-        end
+    # if isa(T, nGraph.CPU)
+    #     if in(r, (Constant, Arg))
+    #         sz = 0
+    #     else
+    #         sz = sizeof(tensor)
+    #     end
+    # else
+    #     sz = sizeof(tensor)
+    # end
+
+    if in(r, (Constant, Arg))
+        sz = 0
     else
         sz = sizeof(tensor)
     end

@@ -407,7 +407,7 @@ function gpu_go(i::Integer)
     backend = nGraph.Backend("GPU")
 
     # IO size now is taken care of automatically
-    execute(fn, optimizers, cache, backend; adjust_io = false)
+    execute(fn, optimizers, cache, backend; adjust_io = true)
     return nothing
 end
 
