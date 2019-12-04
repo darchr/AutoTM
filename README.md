@@ -1,6 +1,8 @@
 # AutoTM
 
-[![DOI](https://zenodo.org/badge/200740567.svg)](https://zenodo.org/badge/latestdoi/200740567)
+| **Documentation** | **Archive** |
+|:---:|:---:|
+[![][docs-latest-img]][docs-latest-url] | [![DOI](https://zenodo.org/badge/200740567.svg)](https://zenodo.org/badge/latestdoi/200740567) |
 
 ## Sub Projects
 
@@ -134,3 +136,7 @@ julia saver.jl load --tarball <path/to/tarball> [--force]
 ```
 This will unpack the tarball and put all the contents back where they came from.
 The `--force` flag will remove existing directories and replace them with the tarball data.
+
+
+[docs-latest-img]: https://img.shields.io/badge/docs-latest-blue.svg
+[docs-latest-url]: http://arch.cs.ucdavis.edu/AutoTM/latest/
