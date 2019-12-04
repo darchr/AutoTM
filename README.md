@@ -4,6 +4,8 @@
 |:---:|:---:|:---:|
 [![][docs-latest-img]][docs-latest-url] | [![DOI](https://zenodo.org/badge/200740567.svg)](https://zenodo.org/badge/latestdoi/200740567) | [![][travis-img]][travis-url] |
 
+For documentation on AutoTM artifact evaluation, go to: http://arch.cs.ucdavis.edu/AutoTM/dev/benchmarker/
+
 ## Sub Projects
 
 | Repo | Link   | Description |
