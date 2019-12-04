@@ -310,14 +310,15 @@ end
 # GPU Benchmarks
 ############################################################################################
 
-const GPU_MAX_MEMORY = 11_000_000_000
+const GPU_MAX_MEMORY = Ref(11_000_000_000)
 
 # Got this number from looking at nvidia-smi after all the GPU initialization code
 # in ngraph runs.
 #
 # Probably worth double-checking
-const GPU_MEMORY_OVERHEAD = 561_000_000
-const GPU_ADJUSTED_MEMORY = GPU_MAX_MEMORY - GPU_MEMORY_OVERHEAD
+#const GPU_MEMORY_OVERHEAD = 561_000_000
+const GPU_MEMORY_OVERHEAD = Ref(1_040_000_000)
+gpu_adjusted_memory() = GPU_MAX_MEMORY[] - GPU_MEMORY_OVERHEAD[]
 
 gpu_fns() = (
     AutoTM.Experiments.Inception_v4(64),
@@ -335,7 +336,7 @@ gpu_fns() = (
 
 function gpu_profile(; recache = false)
     fns = gpu_fns()
-    opt = AutoTM.Optimizer.Synchronous(GPU_ADJUSTED_MEMORY)
+    opt = AutoTM.Optimizer.Synchronous(gpu_adjusted_memory())
     cache = AutoTM.Experiments.GPU_CACHE
     backend = nGraph.Backend("GPU")
 
@@ -360,19 +361,26 @@ end
 
 function gpu_go(i)
     fns = gpu_fns()[i]
-    limit = GPU_ADJUSTED_MEMORY
+    limit = gpu_adjusted_memory()
 
     optimizers = (
-        Optimizer.Synchronous(limit),
-        Optimizer.Asynchronous(limit),
+        AutoTM.Optimizer.Synchronous(limit),
+        AutoTM.Optimizer.Asynchronous(limit),
     )
 
     cache = AutoTM.Experiments.GPU_CACHE
     backend = nGraph.Backend("GPU")
 
     execute(fns, optimizers, cache, backend; adjust_io = true)
+    return nothing
 end
 
+"""
+    gpu_benchmarks()
+
+Run all of the GPU benchmarks.
+Results will be generated to  `AutoTM/experiments/Benchmarker/figures/gpu`
+"""
 function gpu_benchmarks()
     for i in 1:length(gpu_fns())
         GC.gc()
@@ -381,4 +389,19 @@ function gpu_benchmarks()
     end
 end
 
-plot_gpu_performance() = pgf_gpu_performance_plot(gpu_fns(), AutoTM.Experiments.GPU_CACHE)
+"""
+    plot_gpu_performance(fns = gpu_fns(), formulations = ("synchronous", "asynchronous"))
+
+Generate the GPU performance plot, comparing AutoTM with `cudaMallocManaged`.
+"""
+function plot_gpu_performance(;
+        fns = gpu_fns(),
+        formulations = ("synchronous", "asynchronous")
+    )
+
+    return pgf_gpu_performance_plot(
+        fns, 
+        AutoTM.Experiments.GPU_CACHE;
+        formulations = formulations
+    )
+end

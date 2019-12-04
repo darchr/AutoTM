@@ -572,6 +572,7 @@ function pgf_gpu_performance_plot(
         x = []
 
         for (i, f) in enumerate(funcs)
+            @show name(f)
             data = deserialize(canonical_path(f, formulation, cache, backend))
             speedup = baseline_runtime[f] / minimum(getname(data.runs, :actual_runtime))
 
