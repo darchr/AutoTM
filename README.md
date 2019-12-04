@@ -1,8 +1,8 @@
 # AutoTM
 
-| **Documentation** | **Archive** |
-|:---:|:---:|
-[![][docs-latest-img]][docs-latest-url] | [![DOI](https://zenodo.org/badge/200740567.svg)](https://zenodo.org/badge/latestdoi/200740567) |
+| **Documentation** | **Archive** | **Status** |
+|:---:|:---:|:---:|
+[![][docs-latest-img]][docs-latest-url] | [![DOI](https://zenodo.org/badge/200740567.svg)](https://zenodo.org/badge/latestdoi/200740567) | [![][travis-img]][travis-url] |
 
 ## Sub Projects
 
@@ -140,3 +140,6 @@ The `--force` flag will remove existing directories and replace them with the ta
 
 [docs-latest-img]: https://img.shields.io/badge/docs-latest-blue.svg
 [docs-latest-url]: http://arch.cs.ucdavis.edu/AutoTM/dev/
+
+[travis-img]: https://travis-ci.org/darchr/AutoTM.svg?branch=master
+[travis-url]: https://travis-ci.org/darchr/AutoTM
