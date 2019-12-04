@@ -139,4 +139,4 @@ The `--force` flag will remove existing directories and replace them with the ta
 
 
 [docs-latest-img]: https://img.shields.io/badge/docs-latest-blue.svg
-[docs-latest-url]: http://arch.cs.ucdavis.edu/AutoTM/latest/
+[docs-latest-url]: http://arch.cs.ucdavis.edu/AutoTM/dev/
