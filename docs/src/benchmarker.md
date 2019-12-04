@@ -1,5 +1,10 @@
 # AutoTM Artifact Workflow
 
+```@contents
+Pages = ["benchmarker.md"]
+Depth = 3
+```
+
 ## PMM
 
 ## GPU

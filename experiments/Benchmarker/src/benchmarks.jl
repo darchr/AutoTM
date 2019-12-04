@@ -359,8 +359,18 @@ function gpu_profile(; recache = false)
     end
 end
 
-function gpu_go(i)
-    fns = gpu_fns()[i]
+"""
+    gpu_go(i::Integer)
+
+Run the `i`th GPU benchmark.
+
+The code is set up this way to facilitate restarting Julia between sessions.
+"""
+function gpu_go(i::Integer)
+    GC.gc()
+    fn = gpu_fns()[i]
+
+    @info "Running $(name(fn)) - Round $i"
     limit = gpu_adjusted_memory()
 
     optimizers = (
@@ -371,22 +381,8 @@ function gpu_go(i)
     cache = AutoTM.Experiments.GPU_CACHE
     backend = nGraph.Backend("GPU")
 
-    execute(fns, optimizers, cache, backend; adjust_io = true)
+    execute(fn, optimizers, cache, backend; adjust_io = true)
     return nothing
-end
-
-"""
-    gpu_benchmarks()
-
-Run all of the GPU benchmarks.
-Results will be generated to  `AutoTM/experiments/Benchmarker/figures/gpu`
-"""
-function gpu_benchmarks()
-    for i in 1:length(gpu_fns())
-        GC.gc()
-        gpu_go(i)
-        GC.gc()
-    end
 end
 
 """
