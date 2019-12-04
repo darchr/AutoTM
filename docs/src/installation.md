@@ -1,10 +1,59 @@
 # Installation
 
-AutoTM requires at least [Julia 1.2](https://julialang.org/downloads/) to run.
-Installation of
+Clone the repository with
+```sh
+git clone --recursive https://github.com/darchr/AutoTM
+export AUTOTM_HOME=$(pwd)/AutoTM
+```
 
-## Installing an ILP Solver
+## Setup
 
-For full reproducibility, AutoTM uses [Gurobi](https://www.gurobi.com) as its ILP solver.
-Free academic licenses exist for Gurobi.
+A simple setup needs to be performed to indicate how the project will be used.
+To enter the setup, run
+```sh
+cd $AUTOTM_HOME
+julia --color=yes setup.jl
+```
+The following selections can be made - choose which are appropriate for your system:
+* Use NVDIMMs in 1LM (requires a Cascade Lake system with Optane DC NVDIMMs)
+* Use of a GPU (requires CUDA 10.1 or CUDA 10.2)
+* Use Gurobi as the ILP solver (requires a Gurobi license (see below)).
+    If Gurobi is not selected, the open source Cbc solver will be used.
+    Please note that the original experiments were run with Gurobi.
+    
+## Building
+
+Launch Julia from the AutoTM project
+```sh
+cd $AUTOTM_HOME/AutoTM
+julia --project
+```
+
+In the Julia REPL, press `]` to switch to package (pkg) mode and run following commands:
+```julia
+julia> ]
+(AutoTM) pkg> instantiate
+(AutoTM) pkg> build -v
+```
+This will trigger the build process for our custom version of ngraph.
+Passing the `-v` command to `build` will helpfully display any errors that occur during the build process.
+
+## Using the Gurobi ILP solver (optional)
+
+The results in the AutoTM paper use [Gurobi](https://www.gurobi.com) for the ILP solver.
+However, Gurobi requires a license to run.
+Free trial and academic licenses are available from the Gurobi website: https://www.gurobi.com
+
+If using Gurobi, please obtain a license and install the software according the instructions on the website.
+
+Then, when building the project, make sure to run
+```julia
+julia> ENV["GUROBI_HOME"] = "path/to/gurobi"
+```
+in Julia before executing the build step above.
+
+!!! note
+
+    Using the Gurobi ILP solver is optional.
+    If not selected during the setup step, an open-source solver [Cbc](https://projects.coin-or.org/Cbc) will be used.
 
