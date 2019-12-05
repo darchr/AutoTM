@@ -9,8 +9,10 @@ makedocs(
     doctest = false,
     pages = Any[
         "AutoTM" => "index.md",
+        "Software Requirements" => "software.md",
         "Installation" => "installation.md",
         "AutoTM Artifact Workflow" => "benchmarker.md",
+        "Experiment Customization" => "customization.md"
     ],
 )
 
