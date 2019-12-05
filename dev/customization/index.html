@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Experiment Customization · AutoTM</title><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit">AutoTM</span></div><form class="docs-search" action="../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../">AutoTM</a></li><li><a class="tocitem" href="../software/">Software Requirements</a></li><li><a class="tocitem" href="../installation/">Installation</a></li><li><a class="tocitem" href="../benchmarker/">AutoTM Artifact Workflow</a></li><li class="is-active"><a class="tocitem" href>Experiment Customization</a><ul class="internal"><li><a class="tocitem" href="#CPU-Changing-the-Number-of-Threads.-1"><span>CPU - Changing the Number of Threads.</span></a></li><li><a class="tocitem" href="#CPU-Changing-DRAM-Limits-1"><span>CPU - Changing DRAM Limits</span></a></li><li><a class="tocitem" href="#GPU-Changing-DRAM-Limits-1"><span>GPU - Changing DRAM Limits</span></a></li><li><a class="tocitem" href="#CPU/GPU-New-Networks-1"><span>CPU/GPU - New Networks</span></a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Experiment Customization</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Experiment Customization</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/darchr/AutoTM/blob/master/docs/src/customization.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Experiment-Customization-1"><a class="docs-heading-anchor" href="#Experiment-Customization-1">Experiment Customization</a><a class="docs-heading-anchor-permalink" href="#Experiment-Customization-1" title="Permalink"></a></h1><p>There are a couple of ways to customize experiments.</p><h2 id="CPU-Changing-the-Number-of-Threads.-1"><a class="docs-heading-anchor" href="#CPU-Changing-the-Number-of-Threads.-1">CPU - Changing the Number of Threads.</a><a class="docs-heading-anchor-permalink" href="#CPU-Changing-the-Number-of-Threads.-1" title="Permalink"></a></h2><p>The CPU portion of the code defaults to using 24 threads on Socket 1 of a dual socket system (with sockets numbered as 0 and 1). This can be changed by calling</p><pre><code class="language-none">AutoTM.setup_affinities(; omp_num_threads = nthreads)</code></pre><p>By default, thread affinities are assigned one per physical core, essentially disabling hyperthreading. If you really want hyperthreading, the keyword argument <code>threads_per_core = 2</code> may be passed to <code>setup_affinities</code>.</p><div class="admonition is-info"><header class="admonition-header">Note</header><div class="admonition-body"><p>Calls to <code>setup_affinities</code> only work if called before the first run of the ngraph compiler. The LLVM compiler backing ngraph doesn&#39;t like changing the number of OMP threads for some reason.</p><p>Also don&#39;t do something crazy like <code>omp_num_threads = 1024</code> - I have no idea what will happen.</p></div></div><p>Kernel profiles are parameterized by number of threads so you don&#39;t have to worry about kernel profiles clobbering when changing the number of threads.</p><h2 id="CPU-Changing-DRAM-Limits-1"><a class="docs-heading-anchor" href="#CPU-Changing-DRAM-Limits-1">CPU - Changing DRAM Limits</a><a class="docs-heading-anchor-permalink" href="#CPU-Changing-DRAM-Limits-1" title="Permalink"></a></h2><p>Supporting different PMM to DRAM ratios is straight forward. When calling <a href="@ref PMM - Conventional Benchmarks"><code>run_conventional</code></a> entry function, custom ratios may be passed. These ratios are simply defined by Julia&#39;s native <code>Rational{Int}</code> type. For example, for a 16 to 1 PMM to DRAM ratio, simply pass <code>16 // 1</code>. The resulting call might look like</p><pre><code class="language-julia">Benchmarker.run_conventional(
+    Benchmarker.test_vgg(),
+    [AutoTM.Optimizer.Synchronous],
+    16 // 1
+)</code></pre><p>Furthermore, a hard DRAM limit can be passed by just passing in an <code>Int</code> number of bytes to the third argument.</p><h2 id="GPU-Changing-DRAM-Limits-1"><a class="docs-heading-anchor" href="#GPU-Changing-DRAM-Limits-1">GPU - Changing DRAM Limits</a><a class="docs-heading-anchor-permalink" href="#GPU-Changing-DRAM-Limits-1" title="Permalink"></a></h2><p>The GPU DRAM limits can be changed by changing the <code>GPU_MAX_MEMORY</code> and <code>GPU_MEMORY_OVERHEAD</code> variables as described in <a href="@ref">GPU</a>.</p><h2 id="CPU/GPU-New-Networks-1"><a class="docs-heading-anchor" href="#CPU/GPU-New-Networks-1">CPU/GPU - New Networks</a><a class="docs-heading-anchor-permalink" href="#CPU/GPU-New-Networks-1" title="Permalink"></a></h2><p>The code to create the benchmarked networks lives in <code>$AUTOTM_HOME/AutoTM/src/zoo</code>. Networks are modeled following Julia&#39;s <a href="https://github.com/FluxML/Flux.jl">Flux</a> machine learning library and are converted into ngraph computation graphs (with the help of <a href="https://github.com/hildebrandmw/nGraph.jl">nGraph.jl</a> and the mighty <a href="https://github.com/jrevels/Cassette.jl">Cassette</a>).</p><p>Custom networks can be defined externally and passed as an <code>AutoTM.Actualizer</code> to the functions <code>Benchmarker.run_conventional</code> or <code>Benchmarker.run_gpu</code>. A detailed example is given below.</p><p>Suppose we want to model a simple MLP.</p><pre><code class="language-julia">using Benchmarker, Flux, AutoTM, nGraph
+
+# Define a function that returns a simple MLP wrapped up in an `Actualizer`.
+function mlp(batchsize)
+    # Define the network
+    network = Flux.Chain(
+        Dense(4096, 4096, Flux.relu),
+        Dense(4096, 4096, Flux.relu),
+        Dense(4096, 4096, Flux.relu),
+        Dense(4096, 10, Flux.relu),
+        softmax,
+    ) 
+
+    # Create input array
+    X = randn(Float32, 4096, batchsize)
+
+    # Create dummy one-hot input
+    Y = zeros(Float32, 10, batchsize)
+    for i in 1:batchsize
+        Y[rand(1:10)] = one(eltype(Y))
+    end
+
+    # Compute the loss function.  
+    loss(x, y) = Flux.crossentropy(network(x), y)
+    return AutoTM.Actualizer(loss, X, Y; optimizer = nGraph.SGD(Float32(0.005)))
+end
+
+# This function can now be passed to Benchmarker.run_gpu
+# If running with a batchsize of 16
+Benchmarker.run_gpu(() -&gt; mlp(16))</code></pre><p>The results from the above will end up in <code>$AUTOTM_HOME/experiments/Benchmarker/data/gpu</code> with the name <code>unknown_network</code>. Results can be expected by deserializing the data</p><pre><code class="language-julia">using Serialization
+data = deserialize(&quot;data/gpu/unknown_network_asynchronous_gpu_profile.jls&quot;);
+display(first(data.runs))
+
+# Roughly Expected Output
+#   :bytes_async_moved_dram    =&gt; 2003336
+#   :bytes_input_tensors       =&gt; 545962020
+#   :predicted_runtime         =&gt; 0.41705
+#   :pmem_alloc_size           =&gt; 0x000000000012b000
+#   :num_async_move_nodes      =&gt; 32
+#   :num_dram_async_move_nodes =&gt; 17
+#   :move_time                 =&gt; 0.0
+#   :dram_alloc_size           =&gt; 269910080
+#   :num_input_tensors         =&gt; 107
+#   :num_dram_move_nodes       =&gt; 17
+#   :actual_runtime            =&gt; 0.00424737
+#   :bytes_output_tensors      =&gt; 744613584
+#   :bytes_async_moved_pmem    =&gt; 2002056
+#   :num_dram_input_tensors    =&gt; 107
+#   :tensor_size_map           =&gt; Dict(...)
+#   :num_dram_output_tensors   =&gt; 72
+#   :bytes_moved_pmem          =&gt; 2002056
+#   :num_pmem_async_move_nodes =&gt; 15
+#   :num_kernels               =&gt; 72
+#   :bytes_async_moved         =&gt; 4005392
+#   :bytes_moved               =&gt; 0
+#   :dram_limit                =&gt; 8597
+#   :bytes_dram_input_tensors  =&gt; 545962020
+#   :bytes_dram_output_tensors =&gt; 744613584
+#   :bytes_moved_dram          =&gt; 2003336
+#   :num_move_nodes            =&gt; 0
+#   :num_output_tensors        =&gt; 72
+#   :num_pmem_move_nodes       =&gt; 15
+#   :oracle_time               =&gt; 4140.0</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../benchmarker/">« AutoTM Artifact Workflow</a></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Thursday 5 December 2019 01:49">Thursday 5 December 2019</span>. Using Julia version 1.3.0.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
