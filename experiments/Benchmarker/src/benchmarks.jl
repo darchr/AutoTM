@@ -392,7 +392,7 @@ Run the `i`th GPU benchmark.
 
 The code is set up this way to facilitate restarting Julia between sessions.
 """
-run_gpu(i::Integer; kw...) = run_gpu(gpu_fns()[1]; kw...)
+run_gpu(i::Integer; kw...) = run_gpu(gpu_fns()[i]; kw...)
 function run_gpu(
         fn; 
         limit = gpu_adjusted_memory(),
