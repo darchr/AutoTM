@@ -2,7 +2,7 @@
 
 | **Documentation** | **Archive** | **Status** |
 |:---:|:---:|:---:|
-[![][docs-latest-img]][docs-latest-url] | [![DOI](https://zenodo.org/badge/200740567.svg)](https://zenodo.org/badge/latestdoi/200740567) | [![][travis-img]][travis-url] |
+[![][docs-latest-img]][docs-latest-url] | [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3563179.svg)](https://doi.org/10.5281/zenodo.3563179) | [![][travis-img]][travis-url] |
 
 Memory capacity is a key bottleneck for training large scale neural networks. 
 Intel® OptaneTM DC PMM (persistent memory modules) which are available as NVDIMMs are a disruptive technology that promises significantly higher read bandwidth than traditional SSDs and significantly high capacity and at a lower cost per bit than traditional DRAM. 
