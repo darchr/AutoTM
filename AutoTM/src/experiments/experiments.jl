@@ -29,6 +29,9 @@ const GPU_MAX_MEMORY = 11_000_000_000
 const GPU_MEMORY_OVERHEAD = 561_000_000
 const GPU_ADJUSTED_MEMORY = GPU_MAX_MEMORY - GPU_MEMORY_OVERHEAD
 
+# fallback for naming
+name(x) = "unknown_network"
+
 #####
 ##### Convenience wrappers for common models
 #####

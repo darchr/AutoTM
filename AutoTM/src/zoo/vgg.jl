@@ -2,14 +2,6 @@ abstract type AbstractVgg end
 struct Vgg19  <: AbstractVgg end
 struct Vgg416 <: AbstractVgg end
 
-# _Conv(k, ch, σ; kw...) = Conv(
-#     Flux.param(Flux.glorot_uniform(k..., ch...)),
-#     Flux.param(ones(Float32, ch[2])),
-#     σ;
-#     kw...
-# )
-# _ones(x) = Flux.param(ones(Float32, x))
-
 vgg19() = Chain(
         # First Layer
         Conv((3,3), 3 => 64, relu; pad = 1),

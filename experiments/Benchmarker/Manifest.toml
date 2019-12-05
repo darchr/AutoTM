@@ -32,9 +32,9 @@ version = "0.0.4"
 
 [[Arpack]]
 deps = ["BinaryProvider", "Libdl", "LinearAlgebra"]
-git-tree-sha1 = "07a2c077bdd4b6d23a40342a8a108e2ee5e58ab6"
+git-tree-sha1 = "cd64c112638582ba4f0be9c3e20656499c508565"
 uuid = "7d9fca2a-8960-54d3-9f78-7d1dccf2cb97"
-version = "0.3.1"
+version = "0.3.2"
 
 [[AutoTM]]
 deps = ["Cbc", "DataStructures", "Dates", "DocStringExtensions", "Flux", "Gurobi", "IterTools", "JSON", "JuMP", "LightGraphs", "NNlib", "PersistentArrays", "ProgressMeter", "Random", "Serialization", "Statistics", "Tracker", "nGraph"]

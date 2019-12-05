@@ -140,13 +140,14 @@ function plot_costs(;
             conventional_inception() => "synchronous",
         ],
         ratios = common_ratios(),
+        cost_ratio = 2.1,
     )
 
     # Get rid of the all PMEM and all DRAM case
     deleteat!(ratios, findfirst(isequal(0 // 1), ratios))
     cache = AutoTM.Experiments.CPU_CACHE
 
-    pgf_cost(pairs, ratios, cache; cost_ratio = 2.1)
+    pgf_cost(pairs, ratios, cache; cost_ratio = cost_ratio)
 end
 
 ############################################################################################
@@ -385,29 +386,28 @@ function gpu_profile(; recache = false)
 end
 
 """
-    gpu_go(i::Integer)
+    gpu_go(fn; limit = gpu_adjusted_memory())
 
 Run the `i`th GPU benchmark.
 
 The code is set up this way to facilitate restarting Julia between sessions.
 """
-function gpu_go(i::Integer)
-    GC.gc()
-    fn = gpu_fns()[i]
-
-    @info "Running $(name(fn)) - Round $i"
-    limit = gpu_adjusted_memory()
-
-    optimizers = (
-        AutoTM.Optimizer.Synchronous(limit),
-        AutoTM.Optimizer.Asynchronous(limit),
+run_gpu(i::Integer; kw...) = run_gpu(gpu_fns()[1]; kw...)
+function run_gpu(
+        fn; 
+        limit = gpu_adjusted_memory(),
+        optimizers = (AutoTM.Optimizer.Synchronous, AutoTM.Optimizer.Asynchronous),
     )
 
+    # Manually invoke GC to clean up anything that might be still holding data on the GPU.
+    GC.gc()
+
+    @info "Running $(name(fn))"
+    opt = [o(limit) for o in optimizers]
     cache = AutoTM.Experiments.GPU_CACHE
     backend = nGraph.Backend("GPU")
 
-    # IO size now is taken care of automatically
-    execute(fn, optimizers, cache, backend; adjust_io = true)
+    execute(fn, opt, cache, backend; adjust_io = true)
     return nothing
 end
 
@@ -417,7 +417,7 @@ end
 Run all GPU benchmarks.
 A subset can be run by passing a custom iterator.
 """
-gpu_benchmarks(itr = 1:length(gpu_fns())) = gpu_go.(itr)
+gpu_benchmarks(itr = 1:length(gpu_fns())) = run_gpu.(itr)
 
 """
     plot_gpu_performance(fns = gpu_fns(), formulations = ("synchronous", "asynchronous"))
