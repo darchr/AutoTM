@@ -11,7 +11,8 @@ makedocs(
         "AutoTM" => "index.md",
         "Software Requirements" => "software.md",
         "Installation" => "installation.md",
-        "AutoTM Artifact Workflow" => "benchmarker.md",
+        "AutoTM Artifact Workflow" => "workflow.md",
+        "Result Datastructure" => "results.md",
         "Experiment Customization" => "customization.md"
     ],
 )
