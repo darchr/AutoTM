@@ -117,6 +117,7 @@ function plot_conventional_error(;
             conventional_densenet()
         ],
         ratios = common_ratios(),
+        legacy = false,
         formulations = ("static", "synchronous")
     )
 
@@ -125,7 +126,14 @@ function plot_conventional_error(;
     ]
 
     suffix = nothing
-    return pgf_error_plot(models, ratios, caches; formulations = formulations, suffix = suffix)
+    return pgf_error_plot(
+        models, 
+        ratios, 
+        caches; 
+        formulations = formulations, 
+        suffix = suffix, 
+        legacy = legacy
+    )
 end
 
 #####

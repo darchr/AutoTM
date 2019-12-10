@@ -251,7 +251,7 @@ function pgf_plot_performance(f, cache, suffix;
             height = height,
             grid = "major",
             xlabel = "DRAM Limit (GB)",
-            ylabel = "Performance Relative\\\\to all DRAM",
+            ylabel = "Slow Down Relative\\\\to all DRAM",
             # put legend on the bottom right
             legend_style = {
                 at = Coordinate(1.0, 1.0),
@@ -340,8 +340,6 @@ function _speedup(f, ratios, cache, formulations;
 
     plots = []
     for (datum, formulation) in zip(data, formulations)
-        #@show formulation
-
         # This x and y data point
         x = []
         y = []
@@ -356,13 +354,7 @@ function _speedup(f, ratios, cache, formulations;
                 ind = findabsmin(x -> compare_ratio(getratio(x), ratio), datum.runs)
             end
 
-            #@show convert(Float64, getratio(datum.runs[ind]))
-            #@show convert(Float64, ratio)
-            #@show convert(Float64, compare_ratio(getratio(datum.runs[ind]), ratio))
-
             perf = pmm_performance / datum.runs[ind][:actual_runtime]
-            #@show perf
-
             push!(x, ratio_string(ratio))
             push!(y, perf)
         end
@@ -812,6 +804,11 @@ end
 function pgf_error_plot(fns, ratios, caches;
         file = joinpath(FIGDIR, "error.pdf"),
         formulations = ("static", "synchronous"),
+        # Older versions of the ILP formulation measured time in micro-seconds instead of 
+        # 100ths of a second.
+        #
+        # This flag adjusts that.
+        legacy = false,
         suffix = nothing
     )
 
@@ -827,7 +824,13 @@ function pgf_error_plot(fns, ratios, caches;
                 for ratio in ratios
                     ind = findabsmin(x -> compare_ratio(getratio(x), ratio), data.runs)
                     actual_runtime = data.runs[ind][:actual_runtime]
-                    predicted_runtime = data.runs[ind][:predicted_runtime] / 1E2
+
+                    if legacy
+                        predicted_runtime = data.runs[ind][:predicted_runtime] / 1E6
+                    else
+                        predicted_runtime = data.runs[ind][:predicted_runtime] / 1E2
+                    end
+
                     push!(x, ratio_string(ratio))
                     push!(y, 100 * (predicted_runtime - actual_runtime) / actual_runtime)
                 end
