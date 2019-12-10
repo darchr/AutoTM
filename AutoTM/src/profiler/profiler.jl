@@ -47,6 +47,5 @@ include("cache.jl")
 include("kernels.jl")
 include("compare.jl")
 include("inspect.jl")
-include("callbacks.jl")
 
 end

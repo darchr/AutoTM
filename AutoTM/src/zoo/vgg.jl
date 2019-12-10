@@ -92,12 +92,7 @@ function vgg416()
     )
 
     # Return a vetor version of a chain
-    return function(x)
-        for l in layers
-            x = l(x)
-        end
-        return x
-    end
+    return UnstableChain(layers)
 end
 
 function vgg19_inference(batchsize)
@@ -122,8 +117,7 @@ function vgg_training(vgg::T, batchsize) where {T <: AbstractVgg}
     # Get the forward pass
     forward = _forward(vgg)
 
-    # Compute the backward pass.
-    f(x, y) = Flux.crossentropy(forward(x), y)
+    f = ForwardLoss(_forward(vgg), Flux.crossentropy)
     return Actualizer(f, X, Y; optimizer = nGraph.SGD(Float32(0.05)))
 end
 

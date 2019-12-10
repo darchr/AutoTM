@@ -1,7 +1,7 @@
 module Utils
 
 # For compiling
-export Actualizer, actualize, @closure
+export ForwardLoss, Actualizer, actualize, @closure
 
 # Exports from ioconfig
 export IOConfig, setindex, TensorLocation, DRAM, PMEM
@@ -37,6 +37,7 @@ export approx_one, find_vertex, find_edge, findonly, dict_push!, vflatten
 
 import LightGraphs
 import JuMP
+import Flux
 
 # Import all of nGraph plus some commonly used names
 #
@@ -59,6 +60,14 @@ include("allocator.jl")
 ##### Compile and create a model
 #####
 
+struct ForwardLoss{T,F}
+    forward::T
+    loss::F
+end
+
+(F::ForwardLoss)(x, y) = F.loss(F.forward(x), y)
+Flux.@functor ForwardLoss (forward,)
+
 """
 Return type for `AutoTM` compatible functions.
 
@@ -73,7 +82,7 @@ struct Actualizer
 
     "Keyword arguments to pass to `nGraph.compile`"
     kw::NamedTuple
-    Actualizer(f, x...; kw...) = new(f, x, NamedTuple{keys(kw)}(values(kw)))
+    Actualizer(f, x...; kw...) = new(f, x, (;kw...))
 end
 
 """

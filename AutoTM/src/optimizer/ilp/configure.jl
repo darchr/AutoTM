@@ -1,4 +1,4 @@
-function _initial_loc(path)
+function initial_location_of(path)
     # In the case where an argument tensor is permenantly assigned to DRAM, it will
     # have no `path`.
     #
@@ -20,22 +20,14 @@ function configure!(f::nGraph.NFunction, frame::Frame)
     # Get initial schedules for the frame
     initial_schedule = get_schedule(frame)
 
-    # Sanity check to make sure returned `paths` are only empty if the tensor is a
-    # function argument
-    #for (t, (tensor_graph, path)) in initial_schedule 
-    #    if isempty(path)
-    #        @assert isarg(t)
-    #    end
-    #end
-
     # Convert this into an appropriate format for the inner `configure!`
     schedule = Dict(
-        t => (_initial_loc(path), getactions(tensor_graph, path))
+        t => (initial_location_of(path), getactions(tensor_graph, path))
         for (t, (tensor_graph, path)) in initial_schedule
     )
 
-    # Add in the fixed tensors - which 
-    for t in fixed_tensors(frame)  
+    # Add in the fixed tensors
+    for t in fixed_tensors(frame)
         schedule[t] = (first(locations(t)), MoveAction[])
     end
 

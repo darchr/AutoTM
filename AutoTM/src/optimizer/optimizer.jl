@@ -21,7 +21,7 @@ include("configure.jl")
 # Specific optimizer backends
 include("ilp/ilp.jl")
 include("numa/numa.jl")
-include("optimizer_2lm.jl")
+include("memory_mode/memory_mode.jl")
 
 #####
 ##### For gathering statistics

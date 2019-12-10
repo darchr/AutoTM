@@ -115,6 +115,7 @@ end
 #####
 ##### _compare!
 #####
+
 function Profiler._compare!(
         stats,
         f,

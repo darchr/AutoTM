@@ -36,7 +36,7 @@ Keyword Arguments
     must implement the function `save`.
 """
 function profile(fex::nGraph.FluxExecutable; kw...)
-    return profile(fex.ex.ngraph_function, fex.ex.backend; cb = opt_cb!(fex.optimizer), kw...)
+    return profile(fex.ex.ngraph_function, fex.ex.backend; kw...)
 end
 
 function profile(

@@ -55,14 +55,10 @@ Make sure the system is in AppDirect mode and that `setup_1lm.sh` has been execu
 
 Kernel timing profiling must happen separately before the actual execution of benchmarks due to memory fragmentation.
 
-To perform kernel profiling, run 
+To perform kernel profiling, run
 ```julia
 using Benchmarker, AutoTM
-Benchmarker.kernel_profile(
-    Benchmarker.conventional_functions(),
-    [AutoTM.Optimizer.Static, AutoTM.Optimizer.Synchronous, AutoTM.Optimizer.Numa],
-    Benchmarker.common_ratios(),
-)
+Benchmarker.kernel_profile(Benchmarker.conventional_functions())
 ```
 Kernel profiling for all networks can take hours.
 Grab a cup of coffee and let AutoTM do its thing.
@@ -279,14 +275,14 @@ Benchmarker.gpu_benchmarks()
 ```
 
 !!! note
-    
+
     There are some default variables set for the amount of GPU DRAM and for the overhead of the ngraph/CUDA runtimes.
     These are set to 11 GB and 1 GB respectively for a RTX 2080Ti.
     With a different GPU/CUDA version, these will need to be changed.
     For example, if your GPU has 6 GB of memory, these values may be set using
     ```julia
     using Benchmarker, AutoTM
-    
+
     Benchmarker.GPU_MAX_MEMORY[] = 6_000_000_000
     Benchmarker.GPU_MEMORY_OVERHEAD[] = 1_000_000_000
     ```

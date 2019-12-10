@@ -127,6 +127,7 @@ JuMP.optimize!(F::Frame) = optimize!(F.model)
 # Implementations
 include("tensor_graphs.jl")
 include("formulation.jl")
+include("defrag.jl")
 include("configure.jl")
 include("inspect.jl")
 include("compare.jl")

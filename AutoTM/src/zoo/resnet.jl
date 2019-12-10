@@ -12,7 +12,7 @@ struct ResidualBlock
   shortcut
 end
 
-Flux.@treelike ResidualBlock
+Flux.@functor ResidualBlock
 
 function ResidualBlock(
         filters,
@@ -94,8 +94,7 @@ function Bottleneck(filters::Int, downsample::Bool = false, res_top::Bool = fals
     end
 end
 
-
-_layers(::Resnet50) = [3,4,6,3]
+_layers(::Resnet50) = [3, 4, 6, 3]
 _layers(::Resnet200) = [3, 24, 36, 3]
 
 function _resnet(version::AbstractResnet)
@@ -120,12 +119,7 @@ function _resnet(version::AbstractResnet)
     push!(layer_arr, x -> log.(max.(x, Float32(1e-9)))),
     push!(layer_arr, softmax)
 
-    function f(x)
-        for l in layer_arr
-            x = l(x)
-        end
-        return x
-    end
+    return UnstableChain(layer_arr)
 end
 
 function resnet_training(version::T, batchsize = 16; kw...) where {T <: AbstractResnet}
@@ -133,13 +127,13 @@ function resnet_training(version::T, batchsize = 16; kw...) where {T <: Abstract
     X = rand(Float32, 224, 224, 3, batchsize)
     Y = rand(Float32, 1000, batchsize)
 
-    g(x, y) = Flux.crossentropy(_resnet(version)(x), y)
+    f = ForwardLoss(_resnet(version), Flux.crossentropy)
     kw = (optimizer = nGraph.SGD(Float32(0.001)),)
-    return Actualizer(g, X, Y; optimizer = nGraph.SGD(Float32(0.001)))
+
+    return Actualizer(f, X, Y; optimizer = nGraph.SGD(Float32(0.001)))
 end
 
 function resnet_inference(version::T, batchsize = 16) where {T <: AbstractResnet}
     X = rand(Float32, 224, 224, 3, batchsize)
-    f = x -> _resnet(version)(x)
-    return Actualizer(f, X)
+    return Actualizer(_resnet(version), X)
 end

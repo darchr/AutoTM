@@ -12,7 +12,7 @@ struct DenseBlock
     apply_transition::Bool
 end
 
-Flux.@treelike DenseBlock
+Flux.@functor DenseBlock
 
 function (D::DenseBlock)(x)
     for f in D.layers
@@ -35,7 +35,7 @@ function DenseBlock(k::Int, k0, N::Int; apply_transition = true)
     return DenseBlock(layers, transition, apply_transition)
 end
 
-function DenseNet(k) 
+function DenseNet(k)
     counts = (6, 12, 64, 48)
     return Chain(
         Conv( (7,7), 3 => 2 * k, relu; pad = 3, stride = 2),
@@ -57,8 +57,8 @@ function densenet_training(batchsize; growth = 32)
     x = (x .- mean(x)) ./ std(x)
 
     y = rand(Float32, 1000, batchsize)
-    random_labels!(y) 
-    forward = DenseNet(growth)
-    f(x, y) = Flux.crossentropy(forward(x), y)
+    random_labels!(y)
+
+    f = ForwardLoss(DenseNet(growth), Flux.crossentropy)
     return Actualizer(f, x, y; optimizer = nGraph.SGD(Float32(0.001)))
 end
