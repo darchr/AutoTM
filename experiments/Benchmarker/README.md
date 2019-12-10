@@ -1,27 +1,23 @@
 # Benchmarks
 
-## Startup
+## Running Plot Scripts
 
-This benchmark relies on the stacking property of Julia environments.
-We have a base environment from AutoTM, and add extra plotting capabilities on top of it.
-To correctly use this subpacket, start Julia and run the command
+If you want to generate all plots and have the expected data in the correct place, the
+`plots.jmd` file can be turned into a Jupyter notebook using [Weave](https://github.com/JunoLab/Weave.jl)
+
+Run the command
 ```julia
-julia> include("init.jl")
+using Pkg; Pkg.add("Weave")
+using Weave
+notebook("plots.jmd")
 ```
-This will correctly stack environments on the `LOAD_PATH`.
-You can then run
-```
-julia> using Benchmarker
-```
-successfully.
+A notebook titled "plots.ipynb" will appear which can be executed to generate the plots.
 
-# PMM System Experiments.
+After running the nodebooks, generated figures will be in the `figures` subdir.
 
-## Profile Kernels
+!!! note
 
-```julia
-julia> using Benchmarker, AutoTM
-```
+    You will have to have a LaTeX distribution installed for figure generation to work correctly. 
 
 ## Plots
 
