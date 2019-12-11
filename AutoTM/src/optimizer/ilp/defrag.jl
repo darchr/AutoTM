@@ -73,8 +73,8 @@ function update(I::T, local_args, data::FunctionData) where {T <: ILPHolder}
     @info "Allocation size: " worst
 
     decrease_amount = max(
-        # Decrease by 5%
-        0.95,
+        # Decrease by 10%
+        0.90,
         # If the overuse is small, just decrease by a tiny amount
         1 - ((worst / ml) - 1) / 2,
     )

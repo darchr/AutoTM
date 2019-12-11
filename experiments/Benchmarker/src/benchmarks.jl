@@ -349,7 +349,7 @@ const GPU_MAX_MEMORY = Ref(11_000_000_000)
 #
 # Probably worth double-checking
 #const GPU_MEMORY_OVERHEAD = 561_000_000
-const GPU_MEMORY_OVERHEAD = Ref(561_000_000)
+const GPU_MEMORY_OVERHEAD = Ref(800_000_000)
 gpu_adjusted_memory() = GPU_MAX_MEMORY[] - GPU_MEMORY_OVERHEAD[]
 
 """
@@ -372,6 +372,10 @@ gpu_fns() = (
 )
 
 function gpu_profile(; recache = false)
+    # Switch to a better allocator since we're allocating a lot.
+    CuArrays.pool[] = CuArrays.BinnedPool
+    CuArrays.pool[].init()
+
     fns = gpu_fns()
     opt = AutoTM.Optimizer.Synchronous(gpu_adjusted_memory())
     cache = AutoTM.Experiments.GPU_CACHE

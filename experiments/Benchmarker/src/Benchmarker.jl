@@ -1,7 +1,7 @@
 module Benchmarker
 
 # Configure the pool allocator in CuArrays
-ENV["CUARRAYS_MEMORY_POOL"] = "simple"
+#ENV["CUARRAYS_MEMORY_POOL"] = "simple"
 
 using AutoTM
 using nGraph
@@ -28,9 +28,9 @@ function __init__()
     #
     # Instead, we want all allocated arrays to be as small as possible - hence why we're
     # using the "simple" pool.
-    CuArrays.pool[] = CuArrays.SimplePool
-    CuArrays.pool[].init()
-    CuArrays.SimplePool.max_oversize(0)  
+    #CuArrays.pool[] = CuArrays.SimplePool
+    #CuArrays.pool[].init()
+    #CuArrays.SimplePool.max_oversize(0)  
 end
 
 const SRCDIR = @__DIR__
