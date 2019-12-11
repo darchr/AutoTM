@@ -73,7 +73,7 @@ function update(I::T, local_args, data::FunctionData) where {T <: ILPHolder}
     @info "Allocation size: " worst
 
     decrease_amount = max(
-        # Decrease by at most 5%
+        # Decrease by 5%
         0.95,
         # If the overuse is small, just decrease by a tiny amount
         1 - ((worst / ml) - 1) / 2,
@@ -92,8 +92,8 @@ function update(I::T, local_args, data::FunctionData) where {T <: ILPHolder}
         end
     end
 
-    radius = 5
     # Expand indices around the radius
+    radius = 10
     indices = Iterators.flatten([(idx - radius):(idx + radius) for idx in unique(indices)]) |>
         collect |>
         unique
