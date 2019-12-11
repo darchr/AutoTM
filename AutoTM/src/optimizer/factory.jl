@@ -51,6 +51,7 @@ function _factory(
             # limit along with a fudge factor so we can fit the model on the GPU
             if adjust_io
                 io_size = sum(sizeof, input_tensors(f)) + sum(sizeof, output_tensors(f))
+                @show io_size
                 limit = max(getlimit(opt) - io_size, 0)
                 opt_adjusted = _optimizer(opt, limit)
                 modeltype = opt_adjusted(data, backend)

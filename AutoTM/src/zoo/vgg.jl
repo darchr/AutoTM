@@ -2,7 +2,7 @@ abstract type AbstractVgg end
 struct Vgg19  <: AbstractVgg end
 struct Vgg416 <: AbstractVgg end
 
-vgg19() = Chain(
+vgg19() = UnstableChain([
         # First Layer
         Conv((3,3), 3 => 64, relu; pad = 1),
         Conv((3,3), 64 => 64, relu; pad = 1),
@@ -37,7 +37,7 @@ vgg19() = Chain(
         # Truncate to a small positive value to avoid NaNs
         x -> log.(max.(x, Float32(1e-7))),
         softmax
-    )
+    ])
 
 function vgg416()
     loops = (80, 81, 82, 83, 83)

@@ -341,12 +341,15 @@ end
 
 const GPU_MAX_MEMORY = Ref(11_000_000_000)
 
+# Setup the memory allocator in CuArrays to be as conservative as possible.
+
+
 # Got this number from looking at nvidia-smi after all the GPU initialization code
 # in ngraph runs.
 #
 # Probably worth double-checking
 #const GPU_MEMORY_OVERHEAD = 561_000_000
-const GPU_MEMORY_OVERHEAD = Ref(2_000_000_000)
+const GPU_MEMORY_OVERHEAD = Ref(561_000_000)
 gpu_adjusted_memory() = GPU_MAX_MEMORY[] - GPU_MEMORY_OVERHEAD[]
 
 """
@@ -408,10 +411,11 @@ function run_gpu(
     )
 
     # Manually invoke GC to clean up anything that might be still holding data on the GPU.
+    CuArrays.reclaim() 
     GC.gc()
 
     @info "Running $(name(fn))"
-    opt = [o(limit) for o in optimizers]
+    opt = [o(limit) for o in wrap(optimizers)]
     cache = AutoTM.Experiments.GPU_CACHE
     backend = nGraph.Backend("GPU")
 
