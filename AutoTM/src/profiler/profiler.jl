@@ -1,6 +1,5 @@
 module Profiler
 
-
 # profiledata.jl
 export  FunctionData,
         XNode,
@@ -41,6 +40,9 @@ using Statistics
 using DocStringExtensions
 import nGraph
 import ..AutoTM._env_context
+
+# So we can run the priority pass for default allocation size
+import ..Optimizer
 
 include("functiondata.jl")
 include("cache.jl")
