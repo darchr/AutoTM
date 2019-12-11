@@ -590,7 +590,6 @@ function pgf_gpu_performance_plot(
 
         # Conovert milliseconds to seconds
         ideal = minimum(minimum.(getname.(getname(data, :runs), :oracle_time))) / 1E6
-        ideal = min(ideal, baseline_runtime[f])
         @show ideal
 
         push!(x, i)

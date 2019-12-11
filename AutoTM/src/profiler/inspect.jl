@@ -92,6 +92,29 @@ function fastest_time(frame)
     return time
 end
 
+function fastest_time(fex, frame)
+    # Take into account actual runtime.
+    data = frame.profile_data
+    kernel_times = nGraph.get_performance(fex.ex)
+
+    time = 0.0
+    for node in filter(hasprofile, nodes(data))
+        if nGraph.Lib.can_select_algo(nGraph.getpointer(unx(node)))
+            time += min(
+                minimum(times(gettime(node))),
+                kernel_times[nGraph.name(node)]
+            )
+        else
+            time += min(
+                gettime(node),
+                kernel_times[nGraph.name(node)]
+            )
+        end
+    end
+
+    return time
+end
+
 function show_algorithm_slowdown(frame)
     data = frame.profile_data
     model = frame.model
