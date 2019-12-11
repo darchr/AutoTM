@@ -21,8 +21,6 @@ function get_baseline_allocation(backend, f)
     # For the first callback, we want to set all intermediate algorithms to their fastest
     # setting.
     function set(f::nGraph.NFunction)
-        # Priority pass is helpful for decreasing overall memory consumption.
-        Optimizer.priority_pass!(f)
         data = profile(f, backend)
         for node in nodes(data)
             if nGraph.Lib.can_select_algo(nGraph.getpointer(unx(node)))
