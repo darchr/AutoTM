@@ -74,7 +74,7 @@ function update(I::T, local_args, data::FunctionData) where {T <: ILPHolder}
 
     decrease_amount = max(
         # Decrease by at most 5%
-        0.95,
+        0.90,
         # If the overuse is small, just decrease by a tiny amount
         1 - ((worst / ml) - 1) / 2,
     )
