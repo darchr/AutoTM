@@ -267,11 +267,14 @@ when the system finishes profiling, exit the Julia session.
 
 ### Running Benchmarks
 
-In a new Julia session, run the benchmarks with
-```julia
-using Benchmarker, AutoTM
+Julia must be restarted between each benchmark.
+This is because while ngraph is responsible for one large allocation for intermediate data, input and outputs tensors on the Julia side are managed by [CuArrays](https://github.com/JuliaGPU/CuArrays.jl)
+These two allocation sources generally confuse each other across multiple runs, so the most consistent way to get results is to restart Julia.
 
-Benchmarker.gpu_benchmarks()
+A script has been provided in the `Benchmarker` directory.
+To run it, execute
+```
+julia --color=yes gpu_script.jl
 ```
 
 !!! note

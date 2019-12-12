@@ -123,6 +123,12 @@ function Profiler._compare!(
     isnothing(x) && return nothing
 
     fex, frame = x
+
+    actual_time = gettime(fex)
+    oracle_time = Profiler.fastest_time(fex, frame)
+
+    @show oracle_time
+
     GC.gc()
     data = profile(fex; cache = cache)
 
@@ -186,8 +192,8 @@ function Profiler._compare!(
         :move_time => estimate_move_time(fex, frame),
 
         # Timing Breakdowns
-        :actual_runtime => gettime(fex),
-        :oracle_time => Profiler.fastest_time(frame),
+        :actual_runtime => actual_time,
+        :oracle_time => oracle_time,
         #:kernel_times => read_timing_data(fex.ex.ngraph_function)
     )
 
