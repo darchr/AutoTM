@@ -1,15 +1,6 @@
 # Build a workload, run it to get kernel times, and create a datastructure encoding the
 # graph for later plotting runs.
-function generate_timeline(backend, workload, cache, parsed_args)
-    f = get_workload(workload)
-    opt = get_optimizer(parsed_args["mode"])
-
-    # Build up a list of optional keyword arguments.
-    kw = []
-    if parsed_args["use_2lm_scratchpad"]
-        push!(kw, :use_scratchpad => true)
-    end
-
+function generate_timeline(backend, f, opt, cache; use_2lm_scratchpad = false, file = "temp.jls", kw...)
     fex = AutoTM.Optimizer.factory(
         backend,
         f,
@@ -69,13 +60,13 @@ function generate_timeline(backend, workload, cache, parsed_args)
         "nodes" => node_records,
     )
 
-    file = make_filename(
-        workload,
-        parsed_args["mode"],
-        "",
-        parsed_args["use_2lm_scratchpad"];
-        prefix = joinpath(@__DIR__, "serialized")
-    )
+    # file = make_filename(
+    #     workload,
+    #     parsed_args["mode"],
+    #     "",
+    #     parsed_args["use_2lm_scratchpad"];
+    #     prefix = joinpath(@__DIR__, "serialized")
+    # )
     save(file, record)
     return nothing
 end

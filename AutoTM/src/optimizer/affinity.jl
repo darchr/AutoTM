@@ -73,7 +73,7 @@ function priority_pass!(f::nGraph.NFunction)
         elseif is_leader(node)
             # Find the minimum index of all outputs and control dependencies of the node
             deps = nGraph.get_outputs(node)
-            p = maximum(get(node_to_index, n, typemax(Int64)) for n in deps)
+            p = minimum(get(node_to_index, n, typemax(Int64)) for n in deps)
             priorities[node] = p
         end
     end
@@ -81,6 +81,7 @@ function priority_pass!(f::nGraph.NFunction)
     for (n,p) in priorities
         nGraph.set_priority(n, p)
     end
+    nGraph.get_ordered_ops!(f)
     return nothing
 end
 

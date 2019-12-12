@@ -72,8 +72,9 @@ include("autotm.jl")
 include("kernels.jl")
 include("kernel_runner.jl")
 
-# Plot resultsjo
+# Plot results
 include("plots.jl")
+include("heapplot.jl")
 
 # Top level entry point for running all benchmarks
 include("measurements.jl")
