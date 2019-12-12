@@ -12,7 +12,7 @@ Our approach can replace 80% of a system’s DRAM with PMM while only losing a g
 This is a significant improvement over first-touch NUMA, which loses 71.9% of performance. 
 The proposed ILP based synchronous scheduling technique also provides 2x performance over 2LM (existing hardware approach where DRAM is used as a cache) for large batch size ResNet 200.
 
-For documentation on AutoTM artifact evaluation, go to: http://arch.cs.ucdavis.edu/AutoTM/dev/benchmarker/
+For documentation on AutoTM artifact evaluation, go to: http://arch.cs.ucdavis.edu/AutoTM/dev/workflow/
 
 ## Installation
 
