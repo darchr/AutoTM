@@ -35,7 +35,7 @@ if arg == "save"
     rm(TEMPDIR; force = true, recursive = true)
     mkdir(TEMPDIR)
     for (src, dst) in dirs
-        cp(src, joinpath(TEMPDIR, dst))
+        ispath(src) && cp(src, joinpath(TEMPDIR, dst))
     end
     # Generate a tarball
     run(`tar -czvf $TARBALL $(basename(TEMPDIR))`)
@@ -68,6 +68,9 @@ if arg == "load"
 
     # Reverse the source and destination
     for (dst, src) in dirs
+        srcpath = joinpath(TEMPDIR, src)
+        ispath(srcpath) || continue
+
         # Check if we're forcing a copy. If not, check the dest directory and print
         # a warning if it exists
         proceed = true
