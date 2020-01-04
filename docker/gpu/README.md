@@ -24,6 +24,8 @@ To build the container, simply execute the build script
 ./build.sh
 ```
 
+Errors regarding `Gurobi` and `CUDAdrv` can be ignored during the build process.
+
 ## Running the Container
 
 To launch the container, use the script
@@ -36,4 +38,17 @@ This will create and map host directories into the docker container to
 * Make experiment data available to the host (`experiment-data/`)
 * Make generated figures available to the host (`experiment-=figures/`)
 
-The container is launched in interactive mode.
+The container is launched in interactive mode in the `Benchmarker` directory.
+
+Profiling can be performed using
+```julia
+julia> using Benchmarker
+
+julia> Benchmarker.gpu_profile()
+```
+
+The experiment script can be run using
+```sh
+julia --color=yes gpu_script.jl
+```
+**NOTE**: As noted above, solutiong times in the Docker container may be considerably longer because the Cbc ILP solver is used instead of Gurobi.

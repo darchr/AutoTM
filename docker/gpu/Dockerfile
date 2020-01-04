@@ -58,13 +58,14 @@ WORKDIR /home/${WHOAMI}/AutoTM
 
 # Setup build parameters for GPU - no Gurobi
 RUN echo '{"DEBUG":false,"PMDK":false,"NUMA":false,"GPU":true}' > deps/nGraph/deps/build.json
-RUN echo '{"GUROBI":true}' > AutoTM/deps/build.json
+RUN echo '{"GUROBI":false}' > AutoTM/deps/build.json
+
+# Switch to new user to build and instantiate project.
+RUN chown --silent --recursive ${USER_ID}:${GROUP_ID} /home/${WHOAMI}
+USER ${WHOAMI}
 
 # Build Benchmarks
 WORKDIR /home/${WHOAMI}/AutoTM/experiments/Benchmarker
 RUN julia --color=yes --project -E 'using Pkg; Pkg.instantiate()'
-RUN julia --color=yes --project -E 'using Pkg; Pkg.build(; verbose = true)'
-
-RUN chown --silent --recursive ${USER_ID}:${GROUP_ID} /home/${WHOAMI}
-USER ${WHOAMI}
+RUN julia --color=yes --project -E 'using Pkg; Pkg.build(; verbose = true); using Benchmarker, AutoTM'
 

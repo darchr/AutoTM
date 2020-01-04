@@ -1,9 +1,9 @@
 #!/bin/bash
 
 docker run --runtime=nvidia --rm -it \
-    -v "${PWD}/caches":"/AutoTM/data/caches" \
-    -v "${PWD}/experiment-data":"/AutoTM/experiments/Benchmarker/data" \
-    -v "${PWD}/experiment-figures":"/AutoTM/experiments/Benchmarker/figures" \
+    -v "${PWD}/caches":"/home/$(whoami)/AutoTM/data/caches" \
+    -v "${PWD}/experiment-data":"/home/$(whoami)/AutoTM/experiments/Benchmarker/data" \
+    -v "${PWD}/experiment-figures":"/home/$(whoami)/AutoTM/experiments/Benchmarker/figures" \
     darchr/autotm-gpu
 
 # Experiment for tricking Gurobi into working in a Docker container
