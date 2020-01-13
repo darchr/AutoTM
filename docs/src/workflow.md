@@ -296,5 +296,5 @@ julia --color=yes gpu_script.jl
 Following benchmark runs, the GPU performance plot (Figure 12) are simply generated using
 
 ```julia
-Benchmarker.gpu_performance_plot()
+Benchmarker.plot_gpu_performance()
 ```
