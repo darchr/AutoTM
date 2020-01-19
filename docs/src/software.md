@@ -5,28 +5,24 @@ We expect it to work on similar operating systems and non-breaking future versio
 
 The following are required to build the ngraph dependency:
 ```
-build-essential \
-cmake \
-clang-6.0 \
-clang-format-6.0 \
-git \
-curl \
-zlib1g \
-zlib1g-dev \
-libtinfo-dev \
-unzip \
 autoconf \
 automake \
-libtool
-```
-
-## PMM System
-
-If you are running on a system equipped with Intel Optane DC PMMs, the following packages are required
-```
-numactl \
-ipmctl  \
-ndctl   
+build-essential \
+cmake \
+clang \
+clang-format \
+curl \
+git \
+libdaxctl-dev \
+libndctl-dev \
+libtinfo-dev \
+libtool \
+ndctl \
+pkg-config \
+unzip \
+wget \
+zlib1g \
+zlib1g-dev
 ```
 
 ## GPU System

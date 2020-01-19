@@ -2,9 +2,16 @@
 
 ## Getting Code
 
-Clone the repository with
+If retrieving the most up-to-date version of the code, clone the repository with
 ```sh
 git clone --recursive https://github.com/darchr/AutoTM
+export AUTOTM_HOME=$(pwd)/AutoTM
+```
+
+If retrieving code via DOI, run
+```sh
+wget https://zenodo.org/record/3612698/files/autotm.tar.gz
+tar -xvf autotm.tar.gz
 export AUTOTM_HOME=$(pwd)/AutoTM
 ```
 
@@ -58,4 +65,10 @@ in Julia before executing the build step above.
 
     Using the Gurobi ILP solver is optional.
     If not selected during the setup step, an open-source solver [Cbc](https://projects.coin-or.org/Cbc) will be used.
+    However, since Cbc is considerably less powerful than Gurobi, larger ILP models will likely not be solvable in a reasonable period of time.
+
+## Acceptable Build Warnings
+
+CMake warnings regarding variable `TBB_ROOT` can be ignored.
+The version of `ngraph` used for this project does not use any of the `TBB` based code but does not build with `TBB` disabled.
 
