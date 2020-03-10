@@ -23,7 +23,7 @@ struct CPUKernelParams{IS, OS, IT, OT, NIF}
     description::String
 
     # IO Sizes
-    "Sizes of the input tensors." 
+    "Sizes of the input tensors."
     input_sizes::IS
     "Sizes of the output tensors."
     output_sizes::OS
@@ -90,7 +90,7 @@ struct GPUKernelParams{IS, OS, IT, OT}
     description::String
 
     # IO Sizes
-    "Sizes of the input tensors." 
+    "Sizes of the input tensors."
     input_sizes::IS
     "Sizes of the output tensors."
     output_sizes::OS
@@ -159,8 +159,8 @@ function _make_cache(::Type{T}, file; force_new = false) where {T}
         cache_db = deserialize(file)
 
         # Check if we have a key for the current environment context
-        # TODO: Don't really need this for the GPU ... 
-        ctx = _env_context() 
+        # TODO: Don't really need this for the GPU ...
+        ctx = _env_context()
         haskey(cache_db, ctx) && return cache_db[ctx]::T
     end
 
@@ -178,13 +178,23 @@ function save(cache::AbstractKernelCache)
 
     # Deserialize the existing cache.
     ctx = _env_context()
-    if ispath(cache.file) 
+    if ispath(cache.file)
         cache_db = deserialize(cache.file)::Dict
         cache_db[ctx] = cache
     else
         cache_db = Dict(ctx => cache)
     end
 
-    serialize(cache.file, cache_db)
+    # Serialize to a temporary file first
+    # Then swap with the original cache.
+    #
+    # This ensures that if we're interrupted during serialization (which does happen)
+    # we don't corrupt the original cache.
+    path = tempname()
+    open(path; write = true) do io
+        serialize(io, cache_db)
+    end
+
+    mv(path, cache.file; force = true)
 end
 
