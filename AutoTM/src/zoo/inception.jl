@@ -216,17 +216,6 @@ function inception_v4(x)
     return UnstableChain(layers.layers)
 end
 
-# function inception_v4_inference(batchsize)
-#     x = rand(Float32, 299, 299, 3, batchsize)
-#     x = (x .- mean(x)) ./ std(x)
-#
-#     backend = nGraph.Backend()
-#     X = nGraph.Tensor(backend, x)
-#
-#     f = nGraph.compile(backend, inception_v4(x), X)
-#     return f, (X,)
-# end
-
 function inception_v4_training(batchsize; kw...)
     x = rand(Float32, 299, 299, 3, batchsize)
     X = (x .- mean(x)) ./ std(x)
@@ -238,65 +227,3 @@ function inception_v4_training(batchsize; kw...)
     return Actualizer(f, X, Y; optimizer = nGraph.SGD(Float32(0.05)))
 end
 
-#####
-##### Simple Test function
-#####
-
-# _mnist() = Chain(
-#         # First convolution, operating upon a 28x28 image
-#         Conv((3, 3), 1=>256, pad=(1,1), relu),
-#         MaxPool((2,2)),
-#
-#         # Second convolution, operating upon a 14x14 image
-#         Conv((3, 3), 256=>512, pad=(1,1), relu),
-#         MaxPool((2,2)),
-#
-#         # Third convolution, operating upon a 7x7 image
-#         Conv((3, 3), 512=>512, pad=(1,1), relu),
-#         MaxPool((2,2)),
-#
-#         # Reshape 4d tensor into a 2d one, at this point it should be (3, 3, 512, N)
-#         # which is where we get the 4608 in the `Dense` layer below:
-#         x -> reshape(x, :, size(x, 4)),
-#         Dense(4608, 10, relu),
-#
-#         # Finally, softmax to get nice probabilities
-#         x -> log.(max.(x, Float32(1e-7))),
-#         x -> softmax(x)
-#     )
-#
-# function mnist(batchsize = 16)
-#     model = _mnist()
-#
-#     x = rand(Float32, 28, 28, 1, batchsize)
-#     kw = NamedTuple()
-#
-#     return Actualizer(model, x)
-# end
-#
-# # Include an additional modifier to allow modifying the optimizer
-# function mnist_train(batchsize = 16)
-#     model = _mnist()
-#
-#     x = rand(Float32, 28, 28, 1, batchsize)
-#     x = (x .- mean(x)) ./ std(x)
-#
-#     y = zeros(Float32, 10, batchsize)
-#     random_labels!(y)
-#
-#     f(x, y) = Flux.crossentropy(model(x), y)
-#     return Acutalizer(f, x, y; optimizer = nGraph.SGD(Float32(0.001)))
-# end
-#
-# function makeconv(; filter = (3,3), channels = 256, filters = 256)
-#     c = Conv(filter, channels => filters)
-#     X = rand(Float32, 17, 17, 256, 16)
-#     kw = NamedTuple()
-#     return Actualizer(c, X)
-# end
-#
-# function doadd()
-#     f(a) = max.(a, 1e-7)
-#     X = randn(Float32, 10, 10, 10, 10)
-#     return Actualizer(f, X)
-# end

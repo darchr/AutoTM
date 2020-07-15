@@ -64,6 +64,93 @@ function findabsmin(f, x)
 end
 
 #####
+##### ILP Solution Times
+#####
+
+function pgf_ilp_solution_times(
+        fns,
+        cache;
+        file = "plot.tex",
+        formulations = ("synchronous",),
+        backend = nGraph.Backend("CPU"),
+        width = "10cm",
+        height = "6cm",
+    )
+
+    # Collect the symbolic coordinates
+    coordinates = String[]
+    for f in fns
+        push!(coordinates, "$(AutoTM.Experiments.titlename(f))")
+    end
+
+    @show coordinates
+
+    # Construct bar plots
+    plots = []
+    for formulation in formulations
+        x = []
+        y = []
+
+        for f in fns
+            data = deserialize(canonical_path(f, formulation, cache, backend))
+
+            # Extract the extrema of optimization.
+            #
+            # We map the `sum` function because of multiple solution attempts due to
+            # fragmentation.
+            min_opt, max_opt = extrema(sum, getname(data.runs, :optimization_times))
+
+            push!(x, "$(AutoTM.Experiments.titlename(f))")
+            push!(y, max_opt)
+        end
+
+        append!(plots, [
+            @pgf(PlotInc(Coordinates(x, y))),
+            @pgf(LegendEntry(get(_speedup_formulation_lut, formulation, formulation)))
+        ])
+    end
+
+    document = TikzDocument()
+    push!(document, "\\pgfplotsset{width=$width,height=$height}")
+
+    picture = TikzPicture()
+    axis = @pgf Axis(
+        {
+            # Style
+            ybar,
+
+            # Axis Setup
+            ymin = 0,
+            ymode = "log",
+            bar_width = "18pt",
+            xtick = "data",
+            symbolic_x_coords = coordinates,
+
+            # Labels
+            ylabel = "ILP Solution Time (s)\\\\\\textbf{Logarithmic}",
+            ylabel_style = {
+                align = "center",
+                rotate = -90,
+            },
+
+            # Legend Setup
+            legend_style =
+            {
+                 at = Coordinate(0.05, 1.05),
+                 anchor = "south west",
+                 legend_columns = -1
+            },
+        },
+        plots...,
+    )
+
+    push!(picture, axis)
+    push!(document, picture)
+    pgfsave(file, document)
+    return document
+end
+
+#####
 ##### Statistics on what AutoTM has done.
 #####
 
@@ -206,7 +293,10 @@ end
 
 function pgf_plot_performance(f, cache, suffix;
         file = "plot.tex",
-        formulations = ("static", "synchronous",)
+        formulations = ("static", "synchronous",),
+        filter_function = (x,y) -> (x,y),
+        ylabel = "Slow Down Relative\\\\to all DRAM",
+        xlabel = "DRAM Limit (GB)",
     )
 
     paths = canonical_path.(
@@ -221,6 +311,9 @@ function pgf_plot_performance(f, cache, suffix;
     pmm_performance = get_pmm_performance(data)
     dram_performance = get_dram_performance(data)
 
+    xhi = typemin(Float64)
+    yhi = typemin(Float64)
+
     plots = []
     for (datum, formulation) in zip(data, formulations)
         io_size = datum.io_size[]
@@ -228,6 +321,13 @@ function pgf_plot_performance(f, cache, suffix;
 
         x = dram_sizes
         y = getname(datum.runs, :actual_runtime) ./ dram_performance
+
+        # Update bounds on plot
+        xhi = max(xhi, maximum(x))
+        yhi = max(yhi, maximum(y))
+
+        x, y = filter_function(x, y)
+
 
         append!(plots, [
             @pgf(PlotInc(
@@ -237,21 +337,37 @@ function pgf_plot_performance(f, cache, suffix;
                        scale = _ms(),
                    },
                 },
-                Coordinates(dram_sizes, y))
+                Coordinates(x, y))
             ),
             @pgf(LegendEntry(formulation))
         ])
     end
 
+    @show xhi
+    @show yhi
+
     plot = TikzDocument()
     width, height = _wh()
+    ymax = ceil(Int, yhi)
     axs = @pgf Axis(
         {
             width = width,
             height = height,
+            xmin = -10,
+            xmax = 20 * ceil(Int, xhi / 20),
+            ymin = 0.5,
+            ymax = ymax,
+            ytick = 1:ymax,
+            ylabel_style = {
+                rotate = -90,
+                align = "center",
+            },
+            xlabel_style = {
+                align = "center",
+            },
             grid = "major",
-            xlabel = "DRAM Limit (GB)",
-            ylabel = "Slow Down Relative\\\\to all DRAM",
+            xlabel = xlabel,
+            ylabel = ylabel,
             # put legend on the bottom right
             legend_style = {
                 at = Coordinate(1.0, 1.0),
@@ -436,8 +552,9 @@ end
 #####
 
 function pgf_large_performance(fns, cache, cache_2lm;
-        file = joinpath(FIGDIR, "large_performance.pdf"),
-        formulations = ("static", "synchronous")
+        file = joinpath(FIGDIR, "large_performance.tex"),
+        formulations = ("static", "synchronous"),
+        ylabel = "Speedup over 2LM",
     )
 
     # Step through each function, get the 2lm performance
@@ -497,6 +614,7 @@ function pgf_large_performance(fns, cache, cache_2lm;
             ymajorgrids,
             ylabel_style={
                 align = "center",
+                rotate = -90,
             },
             xticklabel_style={
                 rotate = 10,
@@ -504,7 +622,7 @@ function pgf_large_performance(fns, cache, cache_2lm;
             xtick = "data",
 
             # Lables
-            ylabel = "Speedup over 2LM",
+            ylabel = ylabel,
         },
         bar_plots...,
     )
@@ -803,7 +921,7 @@ end
 function pgf_error_plot(fns, ratios, caches;
         file = joinpath(FIGDIR, "error.pdf"),
         formulations = ("static", "synchronous"),
-        # Older versions of the ILP formulation measured time in micro-seconds instead of 
+        # Older versions of the ILP formulation measured time in micro-seconds instead of
         # 100ths of a second.
         #
         # This flag adjusts that.

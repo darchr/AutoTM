@@ -127,11 +127,11 @@ function plot_conventional_error(;
 
     suffix = nothing
     return pgf_error_plot(
-        models, 
-        ratios, 
-        caches; 
-        formulations = formulations, 
-        suffix = suffix, 
+        models,
+        ratios,
+        caches;
+        formulations = formulations,
+        suffix = suffix,
         legacy = legacy
     )
 end
@@ -385,9 +385,9 @@ function gpu_profile(; recache = false)
         @show name(f)
         try
             execute(
-                f, 
-                opt, 
-                cache, 
+                f,
+                opt,
+                cache,
                 backend;
                 # kwargs
                 just_profile = true,
@@ -409,13 +409,13 @@ The code is set up this way to facilitate restarting Julia between sessions.
 """
 run_gpu(i::Integer; kw...) = run_gpu(gpu_fns()[i]; kw...)
 function run_gpu(
-        fn; 
+        fn;
         limit = gpu_adjusted_memory(),
         optimizers = (AutoTM.Optimizer.Synchronous, AutoTM.Optimizer.Asynchronous),
     )
 
     # Manually invoke GC to clean up anything that might be still holding data on the GPU.
-    CuArrays.reclaim() 
+    CuArrays.reclaim()
     GC.gc()
 
     @info "Running $(name(fn))"
@@ -446,7 +446,7 @@ function plot_gpu_performance(;
     )
 
     return pgf_gpu_performance_plot(
-        fns, 
+        fns,
         AutoTM.Experiments.GPU_CACHE;
         formulations = formulations
     )

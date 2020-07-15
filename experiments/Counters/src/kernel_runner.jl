@@ -33,9 +33,9 @@ function benchmark(A::AbstractArray, pipe, params::KernelParams)
     # Set up a bunch of nested loops to run through all the variations of tests we want
     # to execute.
     fns = [
-        #vector_sum,
-        #vector_write,
-        #vector_increment
+        vector_sum,
+        vector_write,
+        vector_increment
     ]
 
     for (f, sz, _nt) in Iterators.product(fns, params.vector_sizes, params.temporals)
@@ -49,24 +49,24 @@ function benchmark(A::AbstractArray, pipe, params::KernelParams)
         run(f, A, pipe, params, nt)
     end
 
-    # Prepare for the random access benchmarks.
-    for vector_size in params.vector_sizes
-        sz = params.array_size
+    # # Prepare for the random access benchmarks.
+    # for vector_size in params.vector_sizes
+    #     sz = params.array_size
 
-        # Get the number of unique indices to cycle through.
-        lfsr_size = div(2 ^ sz, vector_size)
-        for _nt in params.temporals
-            nt = (
-                vector = Val{vector_size}(),
-                lfsr = LFSR(lfsr_size),
-                nontemporal = Val{_nt}(),
-            )
+    #     # Get the number of unique indices to cycle through.
+    #     lfsr_size = div(2 ^ sz, vector_size)
+    #     for _nt in params.temporals
+    #         nt = (
+    #             vector = Val{vector_size}(),
+    #             lfsr = LFSR(lfsr_size),
+    #             nontemporal = Val{_nt}(),
+    #         )
 
-            run(hop_sum, A, pipe, params, nt)
-            run(hop_write, A, pipe, params, nt)
-            run(hop_increment, A, pipe, params, nt)
-        end
-    end
+    #         run(hop_sum, A, pipe, params, nt)
+    #         run(hop_write, A, pipe, params, nt)
+    #         run(hop_increment, A, pipe, params, nt)
+    #     end
+    # end
     return nothing
 end
 

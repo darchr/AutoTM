@@ -1,0 +1,14 @@
+name = "Counters2"
+uuid = "00903d64-e9b3-4cd7-a8ed-03dfae9baab8"
+authors = ["Mark Hildebrand <mhildebrand@ucdavis.edu>"]
+version = "0.1.0"
+
+[deps]
+AutoTM = "9c1cd6ba-68e8-54c4-8ab4-4c74cdb1d447"
+CounterTools = "14d5c891-3eb4-4046-b085-be47e3b93327"
+DataCollection = "8a2d3c17-6bbe-4bd6-a041-217f42a28f9a"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+MattDaemon = "bcc82005-07cc-47e9-8ddf-048db001be8e"
+PersistentArrays = "0bd6e0f1-f413-4adc-84f9-e31ccad13b82"
+SystemSnoop = "c30797a9-91c2-5451-bcc7-95710ac2a28d"
+nGraph = "96f067b3-e350-5ae7-90f2-8283c539009d"

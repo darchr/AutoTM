@@ -41,7 +41,7 @@ vgg19() = UnstableChain([
 
 function vgg416()
     loops = (80, 81, 82, 83, 83)
-    #loops = (60, 61, 62, 63, 63)
+    #loops = (40, 41, 42, 43, 43)
     layers = []
     # First Layer
     push!(layers, Conv((3,3), 3 => 64, relu; pad = 1))

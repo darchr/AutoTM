@@ -34,69 +34,6 @@ end
 getnames(::Type{<:NamedTuple{names}}) where {names} = names
 
 #####
-##### mmap a hugepage.
-#####
-
-const MAP_HUGETLB    = Cint(0x40000)
-const MAP_HUGE_SHIFT = Cint(26)
-const MAP_HUGE_2MB   = Cint(21 << MAP_HUGE_SHIFT)
-const MAP_HUGE_1GB   = Cint(30 << MAP_HUGE_SHIFT)
-
-abstract type AbstractPagesize end
-struct Pagesize4K <: AbstractPagesize end
-struct Pagesize2M <: AbstractPagesize end
-struct Pagesize1G <: AbstractPagesize end
-
-extraflags(::Pagesize4K) = Cint(0)
-extraflags(::Pagesize2M) = MAP_HUGETLB | MAP_HUGE_2MB
-extraflags(::Pagesize1G) = MAP_HUGETLB | MAP_HUGE_1GB
-
-# Align length for `munmap` to a multiple of page size.
-pagesize(::Pagesize4K) = 4096
-pagesize(::Pagesize2M) = 2097152
-pagesize(::Pagesize1G) = 1073741824
-
-align(x, p::AbstractPagesize) = ceil(Int, x / pagesize(p)) * pagesize(p)
-align(x, ::Pagesize4K) = x
-
-# This is heavily based on the Mmap stdlib
-function hugepage_mmap(::Type{T}, dim::Integer, pagesize::AbstractPagesize) where {T}
-    mmaplen = sizeof(T) * dim
-
-    # Build the PROT flags - we want to be able to read and write.
-    prot = Mmap.PROT_READ | Mmap.PROT_WRITE
-    flags = Mmap.MAP_PRIVATE | Mmap.MAP_ANONYMOUS
-    flags |= extraflags(pagesize)
-
-    fd = Base.INVALID_OS_HANDLE
-    offset = Cint(0)
-
-    # Fordward this call into the Julia C library.
-    ptr = ccall(
-        :jl_mmap,
-        Ptr{Cvoid},
-        (Ptr{Cvoid}, Csize_t, Cint, Cint, RawFD, Int64),
-        C_NULL,     # No address we really want.
-        mmaplen,
-        prot,
-        flags,
-        fd,
-        offset,
-    )
-
-    # Wrap this into an Array and attach a finalizer that will unmap the underlying pointer
-    # when the Array if GC'd
-    A = Base.unsafe_wrap(Array, convert(Ptr{T}, UInt(ptr)), dim)
-    finalizer(A) do x
-        systemerror(
-            "munmap",
-            ccall(:munmap, Cint, (Ptr{Cvoid}, Csize_t), ptr, align(mmaplen, pagesize)) != 0
-        )
-    end
-    return A
-end
-
-#####
 ##### Custom Threading
 #####
 
