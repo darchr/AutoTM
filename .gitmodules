@@ -20,3 +20,6 @@
 [submodule "deps/Slabs"]
 	path = deps/Slabs
 	url = https://github.com/hildebrandmw/Slabs.jl
+[submodule "deps/TimeSync"]
+	path = deps/TimeSync
+	url = https://github.com/hildebrandmw/TimeSync.jl

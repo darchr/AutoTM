@@ -3,11 +3,15 @@ module Counters2
 # stdlib
 using Dates
 
+# for ordereddict
+using DataStructures
+
 # Measurement utilities
 using MattDaemon
 using CounterTools
 using SystemSnoop
 using DataCollection
+using TimeSync
 
 # The main thing
 using AutoTM
@@ -21,8 +25,14 @@ socket() = CounterTools.IndexZero(1)
 port() = 2000
 sampletime() = Dates.Millisecond(500)
 database() = joinpath(dirname(@__DIR__), "autotm_counters.jls")
+database_snoop() = joinpath(dirname(@__DIR__), "autotm_snooped_counters.jls")
 
 const UncoreSelectRegister = CounterTools.UncoreSelectRegister
+
+function __init__()
+    # Enable timestamping of ngraph kernels
+    ENV["NGRAPH_KERNEL_TIMESTAMPS"] = true
+end
 
 #####
 ##### Interface AutoTM stuff with DataCollection
@@ -244,6 +254,169 @@ function experiment1lm(f; limit = 185_000_000_000)
     )
 
     return run(parameters)
+end
+
+############################################################################################
+############################################################################################
+############################################################################################
+
+# This run collects the timestamp of nGraph kernels to correlate kernel execution with
+# counter values
+function snooped_run(parameters::RunParameters)
+    # Step 1 - create the desired AutoTM function and run it once to warm everything up.
+    fex = AutoTM.Optimizer.factory(
+        parameters.backend,
+        parameters.f,
+        parameters.optimizer;
+        cache = parameters.cache
+    ) |> maybeunwrap
+    @time fex()
+
+    sampletime_parameters = DataCollection.GenericParameters(; sampletime = sampletime())
+
+    # Now, take IMC measurements
+    for event_name_pairs in GROUPED_IMC_COUNTERS
+        # Reset counters to generate a timeline after data collection.
+        nGraph.reset_counters(fex.ex)
+
+        events = first.(event_name_pairs)
+        measurements = MattDaemon.@measurements (
+            pretime = SystemSnoop.Timestamp(),
+            imc = CounterTools.IMCMonitor(events, socket()),
+            posttime = SystemSnoop.Timestamp(),
+        )
+
+        payload = MattDaemon.ServerPayload(sampletime(), measurements)
+
+        # Capture output stream to a buffer
+        local data
+        local runtime
+
+        stdout_file = joinpath(dirname(@__DIR__), "stdout")
+        open(stdout_file; write = true) do io
+            redirect_stdout(io) do
+                data, _, runtime = MattDaemon.run(fex, payload, port(); sleeptime = Second(1))
+            end
+        end
+
+        # Now, associate time stamps with each kernel
+        kernel_to_time = OrderedDict{String,Int}()
+        open(stdout_file) do io
+            # Each line has an entry
+            #
+            # "nodename timestamp"
+            #
+            # So it's pretty easy to parse
+            for ln in eachline(io)
+                sp = split(ln)
+                nodename = String(sp[1])
+                timestamp = parse(Int, sp[2])
+                kernel_to_time[nodename] = timestamp
+            end
+        end
+
+        # Open up the DataFrame where our data is being collected.
+        df = DataCollection.load(database_snoop())
+
+        #####
+        ##### Node Time Processing
+        #####
+
+        # Adjust the c++ time to Julia time, then to a DateTime object
+        jt = TimeSync.juliatime()
+        ct = TimeSync.cxxtime()
+        adjustment = jt - ct
+        kernel_to_time = OrderedDict(
+            k => unix2datetime((v + adjustment) / 1E6) for (k,v) in kernel_to_time
+        )
+
+        # Save the timings for each kernel
+        node_params = DataCollection.GenericParameters(;
+            counter_group = last.(event_name_pairs),
+        )
+
+        node_data = DataCollection.GenericData(;
+            kernel_to_time = kernel_to_time
+        )
+
+        DataCollection.addrow!(
+            df,
+            node_data,
+            node_params,
+            parameters,
+            sampletime_parameters;
+            cols = :union
+        )
+
+        #####
+        ##### Counter Processing
+        #####
+
+        # Take counter differences and aggregate counters across all IMC Channels
+        counter_values = data.imc
+        deltas = CounterTools.aggregate.(diff(counter_values))
+
+        # Get timestamps in multiple formats for later review
+        timestamps = data.pretime
+
+        for (i, name) in enumerate(last.(event_name_pairs))
+            # Extract the values for this counter
+            this_counter = getindex.(deltas, i)
+            @show name
+
+            dc_data = DataCollection.GenericData(;
+                counter_values = this_counter,
+                timestamps = timestamps,
+            )
+
+            countername = DataCollection.GenericParameters(; counter_name = name)
+
+            DataCollection.addrow!(
+                df,
+                dc_data,
+                countername,
+                parameters,
+                sampletime_parameters;
+                cols = :union,
+            )
+
+        end
+
+        DataCollection.save(df, database_snoop())
+    end
+
+    ### Collect heap data
+    record = heap_record(fex, parameters.backend)
+    df = DataCollection.load(database_snoop())
+    DataCollection.addrow!(
+        df,
+        DataCollection.GenericData(; heap_record = record),
+
+        # Need to add this to get around a limitation in DataCollection.jl
+        DataCollection.GenericParameters(; record = "heap record"),
+        parameters,
+        sampletime_parameters;
+        cols = :union,
+    )
+
+    DataCollection.save(df, database_snoop())
+    return fex
+end
+
+function experiment2lm_snooped(f)
+    optimizer = AutoTM.Optimizer.Optimizer2LM()
+    cache = "nocache"
+    backend = nGraph.Backend("CPU")
+
+    parameters = RunParameters(
+        f = f,
+        optimizer = optimizer,
+        cache = cache,
+        backend = backend,
+        mode = "2LM",
+    )
+
+    return snooped_run(parameters)
 end
 
 end # module
