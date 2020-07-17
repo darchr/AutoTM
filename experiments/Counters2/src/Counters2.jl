@@ -272,7 +272,7 @@ function snooped_run(parameters::RunParameters)
     ) |> maybeunwrap
     @time fex()
 
-    sampletime_parameters = DataCollection.GenericParameters(; sampletime = sampletime())
+    sampletime_parameters = DataCollection.GenericParameters(; sampletime = Millisecond(100))
 
     # Now, take IMC measurements
     for event_name_pairs in GROUPED_IMC_COUNTERS
@@ -286,7 +286,7 @@ function snooped_run(parameters::RunParameters)
             posttime = SystemSnoop.Timestamp(),
         )
 
-        payload = MattDaemon.ServerPayload(sampletime(), measurements)
+        payload = MattDaemon.ServerPayload(Millisecond(100), measurements)
 
         # Capture output stream to a buffer
         local data
