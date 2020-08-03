@@ -24,23 +24,11 @@ git-tree-sha1 = "2b6845cea546604fb4dca4e31414a6a59d39ddcd"
 uuid = "ec485272-7323-5ecc-a04f-4719b315124d"
 version = "0.0.4"
 
-[[Arpack]]
-deps = ["Arpack_jll", "Libdl", "LinearAlgebra"]
-git-tree-sha1 = "2ff92b71ba1747c5fdd541f8fc87736d82f40ec9"
-uuid = "7d9fca2a-8960-54d3-9f78-7d1dccf2cb97"
-version = "0.4.0"
-
-[[Arpack_jll]]
-deps = ["Libdl", "OpenBLAS_jll", "Pkg"]
-git-tree-sha1 = "e214a9b9bd1b4e1b4f15b22c0994862b66af7ff7"
-uuid = "68821587-b530-5797-8361-c406ea357684"
-version = "3.5.0+3"
-
 [[ArrayLayouts]]
 deps = ["FillArrays", "LinearAlgebra"]
-git-tree-sha1 = "a504dca2ac7eda8761c8f7c1ed52427a1be75a3c"
+git-tree-sha1 = "951c3fc1ff93497c88fb1dfa893f4de55d0b38e3"
 uuid = "4c555306-a7a7-4459-81d9-ec55ddd5c99a"
-version = "0.2.6"
+version = "0.3.8"
 
 [[AutoTM]]
 deps = ["Cbc", "DataStructures", "Dates", "DocStringExtensions", "Flux", "Gurobi", "IterTools", "JSON", "JuMP", "LightGraphs", "NNlib", "PersistentArrays", "ProgressMeter", "Random", "Serialization", "Statistics", "Tracker", "nGraph"]
@@ -115,6 +103,18 @@ git-tree-sha1 = "62d80f448b5d77b3f0a59cecf6197aad2a3aa280"
 uuid = "9961bab8-2fa3-5c5a-9d89-47fab24efd76"
 version = "0.6.7"
 
+[[ChainRules]]
+deps = ["ChainRulesCore", "LinearAlgebra", "Reexport", "Requires", "Statistics"]
+git-tree-sha1 = "76cd719cb7ab57bd2687dcb3b186c4f99820a79d"
+uuid = "082447d4-558c-5d27-93f4-14fc19e9eca2"
+version = "0.6.5"
+
+[[ChainRulesCore]]
+deps = ["MuladdMacro"]
+git-tree-sha1 = "c384e0e4fe6bfeb6bec0d41f71cc5e391cd110ba"
+uuid = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+version = "0.8.1"
+
 [[CodecBzip2]]
 deps = ["Bzip2_jll", "Libdl", "TranscodingStreams"]
 git-tree-sha1 = "2e62a725210ce3c3c2e1a3080190e7ca491f18d7"
@@ -159,9 +159,7 @@ version = "0.3.3+0"
 
 [[CounterTools]]
 deps = ["Distributed", "Libdl"]
-git-tree-sha1 = "c25cf569f1f7e93794106ffacb1687fcd1c42186"
-repo-rev = "master"
-repo-url = "https://github.com/hildebrandmw/CounterTools.jl"
+path = "/home/mark/projects/Sandbox/packages/CounterTools/"
 uuid = "14d5c891-3eb4-4046-b085-be47e3b93327"
 version = "0.1.0"
 
@@ -184,15 +182,15 @@ version = "1.3.0"
 
 [[DataCollection]]
 deps = ["DataFrames", "DataStructures", "Dates", "Serialization"]
-path = "../../../DataCollection"
+path = "/home/mark/projects/Sandbox/packages/DataCollection/"
 uuid = "8a2d3c17-6bbe-4bd6-a041-217f42a28f9a"
 version = "0.1.0"
 
 [[DataFrames]]
 deps = ["CategoricalArrays", "Compat", "DataAPI", "Future", "InvertedIndices", "IteratorInterfaceExtensions", "Missings", "PooledArrays", "Printf", "REPL", "Reexport", "SortingAlgorithms", "Statistics", "TableTraits", "Tables", "Unicode"]
-git-tree-sha1 = "d4436b646615928b634b37e99a3288588072f851"
+git-tree-sha1 = "7721fa8c42ccb8f1ea7f99f6c2e94686892dd3b7"
 uuid = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
-version = "0.21.4"
+version = "0.21.5"
 
 [[DataStructures]]
 deps = ["InteractiveUtils", "OrderedCollections"]
@@ -231,9 +229,9 @@ uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
 [[Distributions]]
 deps = ["FillArrays", "LinearAlgebra", "PDMats", "Printf", "QuadGK", "Random", "SpecialFunctions", "Statistics", "StatsBase", "StatsFuns"]
-git-tree-sha1 = "78c4c32a2357a00a0a7d614880f02c2c6e1ec73c"
+git-tree-sha1 = "78eab326cfa3232655df059312b23227404894b7"
 uuid = "31c24e10-a181-5473-b8eb-7969acd0382f"
-version = "0.23.4"
+version = "0.23.7"
 
 [[DocStringExtensions]]
 deps = ["LibGit2", "Markdown", "Pkg", "Test"]
@@ -287,15 +285,15 @@ version = "0.8.1"
 
 [[HTTP]]
 deps = ["Base64", "Dates", "IniFile", "MbedTLS", "Sockets"]
-git-tree-sha1 = "eca61b35cdd8cd2fcc5eec1eda766424a995b02f"
+git-tree-sha1 = "2ac03263ce44be4222342bca1c51c36ce7566161"
 uuid = "cd3eb016-35fb-5094-929b-558a96fad6f3"
-version = "0.8.16"
+version = "0.8.17"
 
 [[IRTools]]
 deps = ["InteractiveUtils", "MacroTools", "Test"]
-git-tree-sha1 = "90ee39f9beaaa186e4968417ea2b8ed5673c91c0"
+git-tree-sha1 = "6875ae3cfcb9a50af80553d5cc825f406e8d13bc"
 uuid = "7869d1d1-7146-5819-86e3-90919afe41df"
-version = "0.3.3"
+version = "0.4.0"
 
 [[Inflate]]
 git-tree-sha1 = "f5fc07d4e706b84f72d54eedcc1c13d92fb0871c"
@@ -336,9 +334,9 @@ version = "0.21.0"
 
 [[JSONSchema]]
 deps = ["HTTP", "JSON", "ZipFile"]
-git-tree-sha1 = "832a4d327d9dafdae55a6ecae04f9997c83615cc"
+git-tree-sha1 = "2646fb3efdb60f35a8c053250a2647358ae0629f"
 uuid = "7d188eb4-7ad8-530c-ae41-71a32a6d4692"
-version = "0.3.0"
+version = "0.3.1"
 
 [[JuMP]]
 deps = ["Calculus", "DataStructures", "ForwardDiff", "LinearAlgebra", "MathOptInterface", "MutableArithmetics", "NaNMath", "Random", "SparseArrays", "Statistics"]
@@ -348,9 +346,9 @@ version = "0.21.3"
 
 [[Juno]]
 deps = ["Base64", "Logging", "Media", "Profile"]
-git-tree-sha1 = "a686b0cf235fa3e491b79b4783c2d2382292b436"
+git-tree-sha1 = "90976c3ab792a98d240d42f9df07420ccfc60668"
 uuid = "e5e0dc1b-0480-54bc-9374-aad01c23163d"
-version = "0.8.2"
+version = "0.8.3"
 
 [[LLVM]]
 deps = ["CEnum", "Libdl", "Printf", "Unicode"]
@@ -401,7 +399,7 @@ version = "0.7.8"
 
 [[MattDaemon]]
 deps = ["CounterTools", "Dates", "Distributed", "MacroTools", "Serialization", "Sockets", "SystemSnoop"]
-path = "../../../MattDaemon"
+path = "/home/mark/projects/Sandbox/packages/MattDaemon/"
 uuid = "bcc82005-07cc-47e9-8ddf-048db001be8e"
 version = "0.1.0"
 
@@ -432,6 +430,11 @@ version = "0.4.3"
 [[Mmap]]
 uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 
+[[MuladdMacro]]
+git-tree-sha1 = "c6190f9a7fc5d9d5915ab29f2134421b12d24a68"
+uuid = "46d2c3a1-f734-5fdb-9937-b9b9aeba4221"
+version = "0.2.2"
+
 [[MutableArithmetics]]
 deps = ["LinearAlgebra", "SparseArrays", "Test"]
 git-tree-sha1 = "6cf09794783b9de2e662c4e8b60d743021e338d0"
@@ -449,12 +452,6 @@ git-tree-sha1 = "c84c576296d0e2fbb3fc134d3e09086b3ea617cd"
 uuid = "77ba4419-2d1f-58cd-9bb1-8ffee604a2e3"
 version = "0.3.4"
 
-[[OpenBLAS_jll]]
-deps = ["CompilerSupportLibraries_jll", "Libdl", "Pkg"]
-git-tree-sha1 = "0c922fd9634e358622e333fc58de61f05a048492"
-uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
-version = "0.3.9+5"
-
 [[OpenSpecFun_jll]]
 deps = ["CompilerSupportLibraries_jll", "Libdl", "Pkg"]
 git-tree-sha1 = "d51c416559217d974a1113522d5919235ae67a87"
@@ -467,10 +464,10 @@ uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 version = "1.3.0"
 
 [[PDMats]]
-deps = ["Arpack", "LinearAlgebra", "SparseArrays", "SuiteSparse", "Test"]
-git-tree-sha1 = "2fc6f50ddd959e462f0a2dbc802ddf2a539c6e35"
+deps = ["LinearAlgebra", "SparseArrays", "SuiteSparse", "Test"]
+git-tree-sha1 = "b3405086eb6a974eba1958923d46bc0e1c2d2d63"
 uuid = "90014a1f-27ba-587c-ab20-58faa44d9150"
-version = "0.9.12"
+version = "0.10.0"
 
 [[Parsers]]
 deps = ["Dates", "Test"]
@@ -615,9 +612,7 @@ uuid = "4607b0f0-06f3-5cda-b6b1-a6196a1729e9"
 
 [[SystemSnoop]]
 deps = ["Dates", "StructArrays"]
-git-tree-sha1 = "1be9a0d9a082d70ecd1cc39823792b9e568bc0ab"
-repo-rev = "master"
-repo-url = "https://github.com/hildebrandmw/SystemSnoop.jl"
+path = "/home/mark/projects/Sandbox/packages/SystemSnoop"
 uuid = "c30797a9-91c2-5451-bcc7-95710ac2a28d"
 version = "0.1.0"
 
@@ -629,9 +624,9 @@ version = "1.0.0"
 
 [[Tables]]
 deps = ["DataAPI", "DataValueInterfaces", "IteratorInterfaceExtensions", "LinearAlgebra", "TableTraits", "Test"]
-git-tree-sha1 = "c45dcc27331febabc20d86cb3974ef095257dcf3"
+git-tree-sha1 = "b7f762e9820b7fab47544c36f26f54ac59cf8abf"
 uuid = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
-version = "1.0.4"
+version = "1.0.5"
 
 [[Test]]
 deps = ["Distributed", "InteractiveUtils", "Logging", "Random"]
@@ -681,10 +676,10 @@ uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
 version = "1.2.11+14"
 
 [[Zygote]]
-deps = ["AbstractFFTs", "ArrayLayouts", "DiffRules", "FillArrays", "ForwardDiff", "Future", "IRTools", "InteractiveUtils", "LinearAlgebra", "MacroTools", "NNlib", "NaNMath", "Random", "Requires", "SpecialFunctions", "Statistics", "ZygoteRules"]
-git-tree-sha1 = "707ceea58e2bd0ff3077ab13a92f8355181d3ee4"
+deps = ["AbstractFFTs", "ArrayLayouts", "ChainRules", "FillArrays", "ForwardDiff", "Future", "IRTools", "InteractiveUtils", "LinearAlgebra", "MacroTools", "NNlib", "Random", "Requires", "Statistics", "ZygoteRules"]
+git-tree-sha1 = "2e2c82549fb0414df10469082fd001e2ede8547c"
 uuid = "e88e6eb3-aa80-5325-afca-941959d7151f"
-version = "0.4.20"
+version = "0.4.22"
 
 [[ZygoteRules]]
 deps = ["MacroTools"]

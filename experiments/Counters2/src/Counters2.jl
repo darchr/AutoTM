@@ -23,13 +23,15 @@ using nGraph
 
 socket() = CounterTools.IndexZero(1)
 port() = 2000
+cpus() = 25:48
 sampletime() = Dates.Millisecond(500)
 database() = joinpath(dirname(@__DIR__), "autotm_counters.jls")
 database_snoop() = joinpath(dirname(@__DIR__), "autotm_snooped_counters.jls")
 
 const UncoreSelectRegister = CounterTools.UncoreSelectRegister
+const CoreSelectRegister = CounterTools.CoreSelectRegister
 
-function __init__()
+function enable_timestamps()
     # Enable timestamping of ngraph kernels
     ENV["NGRAPH_KERNEL_TIMESTAMPS"] = true
 end
@@ -76,6 +78,19 @@ const GROUPED_IMC_COUNTERS = [
     )
 ]
 
+function coreevents()
+    return (
+        # Just a dummy event for now
+        events = (
+            CoreSelectRegister(),
+        ),
+        fixed_events = (
+            CounterTools.RetiredInstructions,
+            CounterTools.ClockUnhaltedCore,
+        ),
+    )
+end
+
 #####
 ##### Run Parameters
 #####
@@ -112,10 +127,19 @@ function run(parameters::RunParameters)
         # Reset counters to generate a timeline after data collection.
         nGraph.reset_counters(fex.ex)
 
+        # prepare imc events
         events = first.(event_name_pairs)
+
+        # prepare core events
+        core_nt = coreevents()
+        core_events = core_nt.events
+        core_fixed = core_nt.fixed_events
+
+        # construct measurement to send to the monitor
         measurements = MattDaemon.@measurements (
             pretime = SystemSnoop.Timestamp(),
             imc = CounterTools.IMCMonitor(events, socket()),
+            core = CounterTools.CoreMonitor(core_events, cpus(); fixed_events = core_fixed),
             posttime = SystemSnoop.Timestamp(),
         )
 
@@ -144,8 +168,28 @@ function run(parameters::RunParameters)
                 sampletime_parameters;
                 cols = :union,
             )
-
         end
+
+        # Save the fixed events
+        core_counter_values = data.core
+        deltas = CounterTools.aggregate.(diff(counter_values))
+
+        for (i, enum) in enumerate(core_fixed)
+            this_counter = getindex.(deltas, i)
+            dc_data = DataCollection.GenericData(; counter_values = this_counter)
+            countername = DataCollection.GenericParameters(; counter_name = string(enum))
+
+            DataCollection.addrow!(
+                df,
+                dc_data,
+                countername,
+                parameters,
+                sampletime_parameters;
+                cols = :union,
+                force = true,
+            )
+        end
+
         DataCollection.save(df, database())
     end
 
@@ -404,6 +448,7 @@ function snooped_run(parameters::RunParameters)
 end
 
 function experiment2lm_snooped(f)
+    enable_timestamps()
     optimizer = AutoTM.Optimizer.Optimizer2LM()
     cache = "nocache"
     backend = nGraph.Backend("CPU")
