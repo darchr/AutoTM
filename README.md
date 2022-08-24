@@ -1,5 +1,15 @@
 # AutoTM
 
+## Project Update
+
+In the years since this project's release, the ecosystem of dependencies required to build and run this code has evolved to the point where reviving the code is quite difficult. As such, **this project should be considered archived and unmaintained**.
+
+The code will of course continue to be hosted on GitHub for future reference, and I am more than happy to answer any questions you might have! Feel free to open an issue and I will try to respond in a timely manner.
+
+Thank you for your understanding!
+
+## Original README
+
 | **Documentation** | **Archive** | **Status** |
 |:---:|:---:|:---:|
 [![][docs-latest-img]][docs-latest-url] | [![DOI](https://zenodo.org/badge/200740567.svg)](https://zenodo.org/badge/latestdoi/200740567) | [![][travis-img]][travis-url] |
